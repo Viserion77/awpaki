@@ -1,0 +1,2 @@
+# awpaki
+aws-patterns-kit
