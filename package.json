@@ -8,7 +8,6 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
-    "deploy": "npm run build && npm publish",
     "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [

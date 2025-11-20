@@ -102,17 +102,29 @@ npm run test:watch
 
 ## Deployment
 
-To build and publish to npm:
+This package is automatically deployed to npm via GitHub Actions. The deployment workflow is triggered when:
 
-```bash
-npm run deploy
-```
+1. **Creating a Release**: Create a new release on GitHub to automatically publish to npm
+2. **Manual Trigger**: Use the "Publish to NPM" workflow from the Actions tab
 
-Or use the deploy script:
+### Prerequisites
 
-```bash
-./deploy.sh
-```
+Before deploying, ensure you have:
+- Set up the `NPM_TOKEN` secret in your GitHub repository settings
+- Proper access rights to publish the package on npm
+
+### Creating a Release
+
+1. Go to your repository on GitHub
+2. Click on "Releases" → "Create a new release"
+3. Create a new tag (e.g., `v1.0.0`)
+4. Publish the release
+5. The GitHub Action will automatically build, test, and publish to npm
+
+### CI/CD Workflows
+
+- **CI Workflow**: Runs on every push and pull request to validate code quality
+- **Publish Workflow**: Deploys to npm on releases and manual triggers
 
 ## License
 
