@@ -20,6 +20,10 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Viserion77/awpaki"
+  },
   "engines": {
     "node": ">=22.0.0"
   },
