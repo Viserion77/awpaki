@@ -4,7 +4,7 @@ AWS Patterns Kit - A utility library for AWS patterns
 
 ## Description
 
-A TypeScript utility library that provides helper functions for common AWS patterns and operations.
+A TypeScript utility library that provides helper functions for common AWS patterns and operations. The library is organized into modular categories for easy discoverability and usage.
 
 ## Installation
 
@@ -22,8 +22,31 @@ npm install awpaki
 - 🧪 **Well Tested**: Comprehensive test coverage with Jest
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
+- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers)
+- 📚 **Flexible Imports**: Import from root or specific categories
 
 ## Usage
+
+The library is organized into categories for better organization:
+
+- **parsers/**: Data parsing utilities (JSON, etc.)
+- **errors/**: Custom error classes and error handling
+- **extractors/**: Parameter and data extraction utilities
+- **validators/**: Input validation functions
+- **transformers/**: Data transformation utilities
+
+### Import Options
+
+```typescript
+// Option 1: Import from root (recommended)
+import { parseJsonBody } from 'awpaki';
+
+// Option 2: Import from specific category
+import { parseJsonBody } from 'awpaki/parsers';
+
+// Option 3: Import entire category as namespace
+import * as parsers from 'awpaki/parsers';
+```
 
 ### parseJsonBody
 
@@ -58,7 +81,9 @@ try {
 
 ## API Reference
 
-### `parseJsonBody<T>(body: string): T`
+### Parsers
+
+#### `parseJsonBody<T>(body: string): T`
 
 Parses a JSON stringified body and returns the parsed object.
 
@@ -73,6 +98,43 @@ Parses a JSON stringified body and returns the parsed object.
 
 **Throws:**
 - `Error` - When the body is not a valid JSON string
+
+### Errors
+
+Coming soon - Custom error classes for better error handling.
+
+### Extractors
+
+Coming soon - Parameter extraction utilities for AWS events and requests.
+
+### Validators
+
+Coming soon - Input validation functions.
+
+### Transformers
+
+Coming soon - Data transformation utilities.
+
+## Project Structure
+
+```
+src/
+├── index.ts              # Main entry point - exports all modules
+├── parsers/              # JSON and data parsing utilities
+│   ├── index.ts
+│   ├── parseJsonBody.ts
+│   └── parseJsonBody.test.ts
+├── errors/               # Custom error classes (coming soon)
+│   └── index.ts
+├── extractors/           # Parameter extractors (coming soon)
+│   └── index.ts
+├── validators/           # Input validators (coming soon)
+│   └── index.ts
+└── transformers/         # Data transformers (coming soon)
+    └── index.ts
+```
+
+For detailed guidelines on adding new features, see [.github/copilot-instructions.md](.github/copilot-instructions.md).
 
 ## Development
 
