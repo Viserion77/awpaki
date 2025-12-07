@@ -1,4 +1,5 @@
 import { parseJsonBody } from './parseJsonBody';
+import { BadRequestError } from '../errors';
 
 describe('parseJsonBody', () => {
   describe('successful parsing', () => {
@@ -88,46 +89,105 @@ describe('parseJsonBody', () => {
   });
 
   describe('error handling', () => {
-    it('should throw error for invalid JSON', () => {
+    it('should throw BadRequestError for invalid JSON', () => {
       const invalidJson = 'invalid json';
       
-      expect(() => parseJsonBody<object>(invalidJson)).toThrow('Failed to parse JSON body');
+      expect(() => parseJsonBody<object>(invalidJson)).toThrow(BadRequestError);
+      expect(() => parseJsonBody<object>(invalidJson)).toThrow('Invalid JSON format');
     });
 
-    it('should throw error for incomplete JSON object', () => {
+    it('should throw BadRequestError for incomplete JSON object', () => {
       const incompleteJson = '{"name": "John"';
       
-      expect(() => parseJsonBody<object>(incompleteJson)).toThrow('Failed to parse JSON body');
+      expect(() => parseJsonBody<object>(incompleteJson)).toThrow(BadRequestError);
     });
 
-    it('should throw error for incomplete JSON array', () => {
+    it('should throw BadRequestError for incomplete JSON array', () => {
       const incompleteArray = '[1, 2, 3';
       
-      expect(() => parseJsonBody<number[]>(incompleteArray)).toThrow('Failed to parse JSON body');
+      expect(() => parseJsonBody<number[]>(incompleteArray)).toThrow(BadRequestError);
     });
 
-    it('should throw error for malformed JSON with trailing comma', () => {
+    it('should throw BadRequestError for malformed JSON with trailing comma', () => {
       const trailingComma = '{"name": "John",}';
       
-      expect(() => parseJsonBody<object>(trailingComma)).toThrow('Failed to parse JSON body');
+      expect(() => parseJsonBody<object>(trailingComma)).toThrow(BadRequestError);
     });
 
-    it('should throw error for single quotes instead of double quotes', () => {
+    it('should throw BadRequestError for single quotes instead of double quotes', () => {
       const singleQuotes = "{'name': 'John'}";
       
-      expect(() => parseJsonBody<object>(singleQuotes)).toThrow('Failed to parse JSON body');
+      expect(() => parseJsonBody<object>(singleQuotes)).toThrow(BadRequestError);
     });
 
-    it('should throw error for empty string', () => {
-      const emptyString = '';
-      
-      expect(() => parseJsonBody<object>(emptyString)).toThrow('Failed to parse JSON body');
-    });
-
-    it('should throw error with descriptive message', () => {
+    it('should throw BadRequestError with descriptive message', () => {
       const invalidJson = 'not json at all';
       
-      expect(() => parseJsonBody<object>(invalidJson)).toThrow(/Failed to parse JSON body:/);
+      expect(() => parseJsonBody<object>(invalidJson)).toThrow(/Invalid JSON format:/);
+    });
+  });
+
+  describe('null and undefined handling', () => {
+    it('should return empty object for null body by default', () => {
+      const result = parseJsonBody<object>(null);
+      
+      expect(result).toEqual({});
+    });
+
+    it('should return empty object for undefined body by default', () => {
+      const result = parseJsonBody<object>(undefined);
+      
+      expect(result).toEqual({});
+    });
+
+    it('should return empty object for empty string by default', () => {
+      const result = parseJsonBody<object>('');
+      
+      expect(result).toEqual({});
+    });
+
+    it('should return empty object for whitespace-only string', () => {
+      const result = parseJsonBody<object>('   ');
+      
+      expect(result).toEqual({});
+    });
+
+    it('should return default value when provided for null', () => {
+      const defaultValue = { default: true };
+      const result = parseJsonBody<object>(null, { defaultValue });
+      
+      expect(result).toEqual(defaultValue);
+    });
+
+    it('should return default value when provided for undefined', () => {
+      const defaultValue = { count: 0 };
+      const result = parseJsonBody<object>(undefined, { defaultValue });
+      
+      expect(result).toEqual(defaultValue);
+    });
+
+    it('should return default value when provided for empty string', () => {
+      const defaultValue = { empty: true };
+      const result = parseJsonBody<object>('', { defaultValue });
+      
+      expect(result).toEqual(defaultValue);
+    });
+
+    it('should throw BadRequestError when required is true and body is null', () => {
+      expect(() => parseJsonBody<object>(null, { required: true }))
+        .toThrow(BadRequestError);
+      expect(() => parseJsonBody<object>(null, { required: true }))
+        .toThrow('Request body is required');
+    });
+
+    it('should throw BadRequestError when required is true and body is undefined', () => {
+      expect(() => parseJsonBody<object>(undefined, { required: true }))
+        .toThrow(BadRequestError);
+    });
+
+    it('should throw BadRequestError when required is true and body is empty string', () => {
+      expect(() => parseJsonBody<object>('', { required: true }))
+        .toThrow(BadRequestError);
     });
   });
 
