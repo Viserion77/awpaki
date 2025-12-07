@@ -1,4 +1,4 @@
-import { BadRequestError } from '../errors';
+import { BadRequest } from '../errors';
 
 /**
  * Parses a JSON stringified body and returns the parsed object.
@@ -7,7 +7,7 @@ import { BadRequestError } from '../errors';
  * @param {string | null | undefined} body - The stringified JSON body to parse
  * @param {ParseJsonBodyOptions<T>} options - Optional configuration
  * @returns {T} The parsed object of type T
- * @throws {BadRequestError} When the body is not a valid JSON string or is empty (unless defaultValue is provided)
+ * @throws {BadRequest} When the body is not a valid JSON string or is empty (unless defaultValue is provided)
  * 
  * @example
  * ```typescript
@@ -32,18 +32,18 @@ import { BadRequestError } from '../errors';
  * 
  * @example
  * ```typescript
- * // Handle null/undefined with default value
+ * // Handle null/undefined with default value (makes body optional)
  * const result = parseJsonBody<object>(null, { defaultValue: {} });
  * console.log(result); // {}
  * ```
  * 
  * @example
  * ```typescript
- * // Require non-empty body
+ * // By default, empty body throws error
  * try {
- *   parseJsonBody<object>('', { required: true });
+ *   parseJsonBody<object>('');
  * } catch (error) {
- *   console.error('Body is required');
+ *   console.error('Body is required by default');
  * }
  * ```
  * 
@@ -53,7 +53,7 @@ import { BadRequestError } from '../errors';
  * try {
  *   const invalid = parseJsonBody<object>('invalid json');
  * } catch (error) {
- *   if (error instanceof BadRequestError) {
+ *   if (error instanceof BadRequest) {
  *     return error.toLambdaResponse();
  *   }
  * }
@@ -61,33 +61,26 @@ import { BadRequestError } from '../errors';
  */
 export interface ParseJsonBodyOptions<T> {
   /**
-   * Default value to return if body is null, undefined, or empty string
+   * Default value to return if body is null, undefined, or empty string.
+   * When provided, makes the body optional (won't throw error if empty).
    */
   defaultValue?: T;
-  
-  /**
-   * If true, throws error when body is empty. If false and no defaultValue, returns empty object
-   * @default false
-   */
-  required?: boolean;
 }
 
 export function parseJsonBody<T>(
   body: string | null | undefined,
   options?: ParseJsonBodyOptions<T>
 ): T {
-  const { defaultValue, required = false } = options || {};
+  const { defaultValue } = options || {};
 
   // Check if body is empty (null, undefined, or empty string)
   if (body === null || body === undefined || body.trim() === '') {
-    if (required) {
-      throw new BadRequestError('Request body is required');
-    }
+    // If defaultValue is provided, body is optional
     if (defaultValue !== undefined) {
       return defaultValue;
     }
-    // Return empty object as default behavior (like FieldVox)
-    return {} as T;
+    // Otherwise, body is required and we throw an error
+    throw new BadRequest('Request body is required');
   }
 
   try {
@@ -95,8 +88,8 @@ export function parseJsonBody<T>(
     return parsed as T;
   } catch (error) {
     if (error instanceof Error) {
-      throw new BadRequestError(`Invalid JSON format: ${error.message}`);
+      throw new BadRequest(`Invalid JSON format: ${error.message}`);
     }
-    throw new BadRequestError('Invalid JSON format');
+    throw new BadRequest('Invalid JSON format');
   }
 }

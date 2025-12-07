@@ -1,16 +1,16 @@
 import {
   HttpError,
-  BadRequestError,
-  UnauthorizedError,
-  ForbiddenError,
-  NotFoundError,
-  ConflictError,
-  PreconditionFailedError,
-  ValidationError,
-  TooManyRequestsError,
+  BadRequest,
+  Unauthorized,
+  Forbidden,
+  NotFound,
+  Conflict,
+  PreconditionFailed,
+  UnprocessableEntity,
+  TooManyRequests,
   InternalServerError,
-  IntegrationError,
-  ServiceUnavailableError,
+  BadGateway,
+  ServiceUnavailable,
 } from './index';
 
 describe('HttpError', () => {
@@ -72,87 +72,121 @@ describe('HttpError', () => {
     });
   });
 
-  describe('BadRequestError', () => {
+  describe('BadRequest', () => {
     it('should create 400 error', () => {
-      const error = new BadRequestError('Invalid input');
+      const error = new BadRequest('Invalid input');
       
       expect(error.statusCode).toBe(400);
       expect(error.message).toBe('Invalid input');
-      expect(error.name).toBe('BadRequestError');
+      expect(error.name).toBe('BadRequest');
     });
 
     it('should use default message', () => {
-      const error = new BadRequestError();
+      const error = new BadRequest();
       
       expect(error.message).toBe('Bad Request');
     });
   });
 
-  describe('UnauthorizedError', () => {
+  describe('Unauthorized', () => {
     it('should create 401 error', () => {
-      const error = new UnauthorizedError('Invalid token');
+      const error = new Unauthorized('Invalid token');
       
       expect(error.statusCode).toBe(401);
       expect(error.message).toBe('Invalid token');
     });
 
     it('should use default message', () => {
-      const error = new UnauthorizedError();
+      const error = new Unauthorized();
       
       expect(error.message).toBe('Unauthorized');
     });
   });
 
-  describe('ForbiddenError', () => {
+  describe('Forbidden', () => {
     it('should create 403 error', () => {
-      const error = new ForbiddenError('Access denied');
+      const error = new Forbidden('Access denied');
       
       expect(error.statusCode).toBe(403);
       expect(error.message).toBe('Access denied');
     });
   });
 
-  describe('NotFoundError', () => {
+  describe('NotFound', () => {
     it('should create 404 error', () => {
-      const error = new NotFoundError('Resource not found');
+      const error = new NotFound('Resource not found');
       
       expect(error.statusCode).toBe(404);
       expect(error.message).toBe('Resource not found');
     });
   });
 
-  describe('ConflictError', () => {
+  describe('Conflict', () => {
     it('should create 409 error', () => {
-      const error = new ConflictError('Email already exists');
+      const error = new Conflict('Email already exists');
       
       expect(error.statusCode).toBe(409);
       expect(error.message).toBe('Email already exists');
     });
   });
 
-  describe('PreconditionFailedError', () => {
+  describe('PreconditionFailed', () => {
     it('should create 412 error', () => {
-      const error = new PreconditionFailedError('ETag mismatch');
+      const error = new PreconditionFailed('ETag mismatch');
       
       expect(error.statusCode).toBe(412);
       expect(error.message).toBe('ETag mismatch');
     });
   });
 
-  describe('ValidationError', () => {
+  describe('UnprocessableEntity', () => {
     it('should create 422 error', () => {
-      const data = { email: 'Invalid format', age: 'Must be positive' };
-      const error = new ValidationError('Validation failed', data);
+      const errors = { email: 'Invalid format', age: 'Must be positive' };
+      const error = new UnprocessableEntity('Validation failed', errors);
       
       expect(error.statusCode).toBe(422);
       expect(error.message).toBe('Validation failed');
-      expect(error.data).toEqual(data);
+      expect(error.errors).toEqual(errors);
+    });
+
+    it('should use first error as message when message not provided', () => {
+      const errors = { email: 'Invalid format', age: 'Must be positive' };
+      const error = new UnprocessableEntity(undefined, errors);
+      
+      expect(error.message).toBe('Invalid format');
+      expect(error.errors).toEqual(errors);
+    });
+
+    it('should use default message when no message or errors', () => {
+      const error = new UnprocessableEntity();
+      
+      expect(error.message).toBe('Validation Error');
+      expect(error.errors).toBeUndefined();
+    });
+
+    it('should include errors in Lambda response', () => {
+      const errors = { email: 'Invalid format', age: 'Must be positive' };
+      const error = new UnprocessableEntity('Validation failed', errors);
+      const response = error.toLambdaResponse();
+      
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe('Validation failed');
+      expect(body.errors).toEqual(errors);
+    });
+
+    it('should work with single error', () => {
+      const error = new UnprocessableEntity('Single validation error');
+      const response = error.toLambdaResponse();
+      
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe('Single validation error');
+      expect(body.errors).toBeUndefined();
     });
   });
 
-  describe('TooManyRequestsError', () => {
+  describe('TooManyRequests', () => {
     it('should create 429 error', () => {
-      const error = new TooManyRequestsError('Rate limit exceeded');
+      const error = new TooManyRequests('Rate limit exceeded');
       
       expect(error.statusCode).toBe(429);
       expect(error.message).toBe('Rate limit exceeded');
@@ -174,24 +208,24 @@ describe('HttpError', () => {
     });
   });
 
-  describe('IntegrationError', () => {
+  describe('BadGateway', () => {
     it('should create 502 error with integration name', () => {
-      const error = new IntegrationError('Stripe API');
+      const error = new BadGateway('Stripe API');
       
       expect(error.statusCode).toBe(502);
       expect(error.message).toBe('Could not integrate with Stripe API');
     });
 
     it('should use custom error message', () => {
-      const error = new IntegrationError('AWS S3', 'Upload failed');
+      const error = new BadGateway('AWS S3', 'Upload failed');
       
       expect(error.message).toBe('Upload failed');
     });
   });
 
-  describe('ServiceUnavailableError', () => {
+  describe('ServiceUnavailable', () => {
     it('should create 503 error', () => {
-      const error = new ServiceUnavailableError('Maintenance in progress');
+      const error = new ServiceUnavailable('Maintenance in progress');
       
       expect(error.statusCode).toBe(503);
       expect(error.message).toBe('Maintenance in progress');
@@ -200,14 +234,14 @@ describe('HttpError', () => {
 
   describe('instanceof checks', () => {
     it('should work with instanceof HttpError', () => {
-      const error = new BadRequestError('Test');
+      const error = new BadRequest('Test');
       
       expect(error instanceof HttpError).toBe(true);
-      expect(error instanceof BadRequestError).toBe(true);
+      expect(error instanceof BadRequest).toBe(true);
     });
 
     it('should work with Error base class', () => {
-      const error = new NotFoundError('Test');
+      const error = new NotFound('Test');
       
       expect(error instanceof Error).toBe(true);
     });
@@ -216,7 +250,7 @@ describe('HttpError', () => {
   describe('Lambda integration', () => {
     it('should work in try-catch Lambda handler pattern', () => {
       try {
-        throw new BadRequestError('Invalid input');
+        throw new BadRequest('Invalid input');
       } catch (error) {
         if (error instanceof HttpError) {
           const response = error.toLambdaResponse();

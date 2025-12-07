@@ -1,4 +1,2 @@
-// Parameter extractors will be exported here
-// export { parameterExtractor } from './parameterExtractor';
-
-export {};
+export { extractEventParams } from './extractEventParams';
+export type { ParameterConfig, EventSchema } from './extractEventParams';

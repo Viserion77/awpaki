@@ -50,32 +50,113 @@ import * as parsers from 'awpaki/parsers';
 
 ### parseJsonBody
 
-Parses a JSON stringified body and returns the parsed object with full TypeScript support.
+Parses a JSON stringified body with support for null handling, default values, and validation.
 
 ```typescript
-import { parseJsonBody } from 'awpaki';
+import { parseJsonBody, BadRequest } from 'awpaki';
 
-// Parse a simple object
-interface User {
-  name: string;
-  age: number;
+// Basic parsing
+const user = parseJsonBody<User>('{"name": "John", "age": 30}');
+
+// Body is required by default
+try {
+  const body = parseJsonBody<Body>(event.body);
+} catch (error) {
+  if (error instanceof BadRequest) {
+    return error.toLambdaResponse();
+  }
 }
 
-const jsonString = '{"name": "John Doe", "age": 30}';
-const user = parseJsonBody<User>(jsonString);
-console.log(user.name); // "John Doe"
-console.log(user.age);  // 30
+// Make body optional with default value
+const data = parseJsonBody<Data>(event.body, { defaultValue: { count: 0 } });
+```
 
-// Parse an array
-const arrayString = '[1, 2, 3, 4, 5]';
-const numbers = parseJsonBody<number[]>(arrayString);
-console.log(numbers); // [1, 2, 3, 4, 5]
+### extractEventParams
 
-// Error handling
+Extract and validate parameters from AWS Lambda events with comprehensive validation and multiple error collection.
+
+```typescript
+import { extractEventParams, UnprocessableEntity } from 'awpaki';
+
+// Define schema
+const schema = {
+  pathParameters: {
+    id: {
+      label: 'User ID',
+      required: true,
+      expectedType: 'string'
+    }
+  },
+  body: {
+    email: {
+      label: 'Email',
+      required: true,
+      expectedType: 'string'
+    },
+    age: {
+      label: 'Age',
+      expectedType: 'number',
+      default: 18
+    }
+  },
+  headers: {
+    authorization: {
+      label: 'Authorization',
+      required: true,
+      caseInsensitive: true,
+      statusCodeError: 401
+    }
+  }
+};
+
+// Extract and validate
 try {
-  const invalid = parseJsonBody<object>('invalid json');
+  const params = extractEventParams<{
+    id: string;
+    email: string;
+    age: number;
+    authorization: string;
+  }>(schema, event);
 } catch (error) {
-  console.error('Failed to parse JSON:', error.message);
+  if (error instanceof UnprocessableEntity) {
+    // Multiple errors collected in errors object
+    console.log(error.errors);
+    // { 'body.email': 'Email is required', 'body.age': 'Age must be a number' }
+    return error.toLambdaResponse();
+  }
+}
+```
+
+### Custom HTTP Errors
+
+Comprehensive HTTP error classes with Lambda integration and multiple error support.
+
+```typescript
+import {
+  BadRequest,
+  Unauthorized,
+  UnprocessableEntity,
+  NotFound
+} from 'awpaki';
+
+// Single error
+throw new BadRequest('Invalid input');
+
+// Multiple validation errors
+throw new UnprocessableEntity('Validation failed', {
+  email: 'Invalid email format',
+  age: 'Must be 18 or older',
+  password: 'Must be at least 8 characters'
+});
+
+// With Lambda response
+try {
+  // your code
+} catch (error) {
+  if (error instanceof HttpError) {
+    return error.toLambdaResponse();
+    // Returns proper API Gateway response with status code
+  }
 }
 ```
 
@@ -83,37 +164,130 @@ try {
 
 ### Parsers
 
-#### `parseJsonBody<T>(body: string): T`
+#### `parseJsonBody<T>(body: string | null | undefined, options?: ParseJsonBodyOptions<T>): T`
 
-Parses a JSON stringified body and returns the parsed object.
+Parses a JSON stringified body with enhanced null handling and validation.
 
 **Type Parameters:**
 - `T` - The expected type of the parsed object
 
 **Parameters:**
-- `body: string` - The stringified JSON body to parse
+- `body: string | null | undefined` - The stringified JSON body to parse
+- `options?: ParseJsonBodyOptions<T>` - Optional configuration
+  - `defaultValue?: T` - Default value when body is empty (makes body optional)
 
 **Returns:**
 - `T` - The parsed object of type T
 
 **Throws:**
-- `Error` - When the body is not a valid JSON string
+- `BadRequest` - When body is invalid JSON or empty (unless defaultValue provided)
+
+---
 
 ### Errors
 
-Coming soon - Custom error classes for better error handling.
+#### HTTP Error Classes
+
+All error classes extend `HttpError` and include:
+- `statusCode: number` - HTTP status code
+- `data?: Record<string, any>` - Additional error data
+- `headers?: Record<string, string | boolean | number>` - Custom headers
+- `toLambdaResponse()` - Converts to API Gateway response
+- `toString()` - Formatted string for logging
+
+**Available Classes:**
+- `BadRequest` (400)
+- `Unauthorized` (401)
+- `Forbidden` (403)
+- `NotFound` (404)
+- `ConflictError` (409)
+- `PreconditionFailedError` (412)
+- `UnprocessableEntity` (422) - **Supports multiple errors**
+- `TooManyRequestsError` (429)
+- `InternalServerError` (500)
+- `IntegrationError` (502)
+- `ServiceUnavailableError` (503)
+
+#### `UnprocessableEntity` - Special Features
+
+Supports collecting multiple validation errors:
+
+```typescript
+new UnprocessableEntity('Validation failed', {
+  email: 'Invalid format',
+  age: 'Must be positive',
+  password: 'Too short'
+});
+```
+
+The `toLambdaResponse()` includes all errors in the response body:
+
+```json
+{
+  "message": "Validation failed",
+  "errors": {
+    "email": "Invalid format",
+    "age": "Must be positive",
+    "password": "Too short"
+  }
+}
+```
+
+---
 
 ### Extractors
 
-Coming soon - Parameter extraction utilities for AWS events and requests.
+#### `extractEventParams<T>(schema: EventSchema, event: APIGatewayProxyEvent | Record<string, unknown>): T`
+
+Extracts and validates parameters from AWS Lambda events with comprehensive validation.
+
+**Type Parameters:**
+- `T` - The expected return type
+
+**Parameters:**
+- `schema: EventSchema` - Schema defining parameters to extract and validation rules
+- `event` - AWS Lambda event (APIGatewayProxyEvent or custom object)
+
+**Returns:**
+- `T` - Extracted and validated parameters
+
+**Throws:**
+- `UnprocessableEntity` - When validation fails (collects multiple errors)
+- `Unauthorized` - When a 401 error is configured
+
+**Schema Configuration:**
+
+Each parameter config supports:
+- `label: string` - Human-readable name
+- `required?: boolean` - Whether required
+- `expectedType?: 'string' | 'number' | 'boolean' | 'object' | 'array'` - Type validation
+- `default?: unknown` - Default value if missing
+- `statusCodeError?: number` - Custom error status code
+- `notFoundError?: string` - Custom missing message
+- `wrongTypeMessage?: string` - Custom type error message
+- `caseInsensitive?: boolean` - Case-insensitive matching
+- `decoder?: (value: unknown) => unknown` - Custom transformer
+
+**Supported Event Sources:**
+- `pathParameters` - URL path params
+- `queryStringParameters` - Query strings
+- `headers` - HTTP headers (with case-insensitive support)
+- `body` - Request body (auto-parsed JSON)
+- Custom nested paths
+
+---
 
 ### Validators
 
 Coming soon - Input validation functions.
 
+---
+
 ### Transformers
 
 Coming soon - Data transformation utilities.
+
+---
 
 ## Project Structure
 

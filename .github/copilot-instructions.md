@@ -135,3 +135,20 @@ When adding new features:
 3. Update category index.ts
 4. Run `npm test` and `npm run build`
 5. Commit with descriptive message
+
+## Documentation Guidelines
+
+**DO NOT create separate documentation files** like:
+- ❌ `ANALYSIS.md`
+- ❌ `NAMING_ANALYSIS.md`
+- ❌ `IMPROVEMENTS.md`
+- ❌ `FEATURES_V2.md`
+- ❌ `RESUMO.md`
+- ❌ `DETALHES.md`
+- ❌ Any other summary/analysis markdown files
+
+**Instead:**
+- ✅ Update the main `README.md` if documentation is needed
+- ✅ Add JSDoc comments directly in the code
+- ✅ Respond directly to user questions in chat
+- ✅ Keep documentation inline with code
