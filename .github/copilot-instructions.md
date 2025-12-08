@@ -41,6 +41,7 @@ src/
 - **extractors/**: Functions that extract data from requests, events, etc.
 - **validators/**: Functions that validate inputs and data structures
 - **transformers/**: Functions that transform data between formats
+- **loggers/**: Lambda event logging utilities for tracking and debugging
 
 ### 2. Create Your Module
 
@@ -113,6 +114,7 @@ import * as parsers from 'awpaki/parsers';
 - Write comprehensive tests for all features
 - Follow existing naming conventions
 - Keep functions pure and focused on single responsibilities
+- **Avoid `forEach`**: Use `for...of` or `map/filter/reduce` instead. The `forEach` method increases cognitive load and makes code harder to reason about
 
 ## Type Safety Rules
 

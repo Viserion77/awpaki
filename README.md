@@ -19,11 +19,13 @@ npm install awpaki
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (129 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
-- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers)
+- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers, loggers)
 - 📚 **Flexible Imports**: Import from root or specific categories
+- 🔒 **Type Safety**: Enums for HTTP status codes and parameter types
+- 📊 **Lambda Logging**: Built-in event logging for production tracking
 
 ## Usage
 
@@ -46,6 +48,111 @@ import { parseJsonBody } from 'awpaki/parsers';
 
 // Option 3: Import entire category as namespace
 import * as parsers from 'awpaki/parsers';
+```
+
+## Quick Start Examples
+
+### Complete Lambda Handler Example
+
+```typescript
+import { 
+  logApiGatewayEvent,
+  extractEventParams, 
+  parseJsonBody,
+  NotFound,
+  UnprocessableEntity,
+  HttpStatus,
+  ParameterType
+} from 'awpaki';
+import { APIGatewayProxyEvent, Context } from 'aws-lambda';
+
+export const handler = async (event: APIGatewayProxyEvent, context: Context) => {
+  // 1. Log event for tracking/debugging
+  logApiGatewayEvent(event, context);
+  
+  try {
+    // 2. Extract and validate parameters
+    const params = extractEventParams({
+      pathParameters: {
+        userId: {
+          label: 'User ID',
+          required: true,
+          expectedType: ParameterType.STRING,
+          statusCodeError: HttpStatus.NOT_FOUND
+        }
+      },
+      headers: {
+        authorization: {
+          label: 'Authorization',
+          required: true,
+          statusCodeError: HttpStatus.UNAUTHORIZED
+        }
+      },
+      body: {
+        email: {
+          label: 'Email',
+          required: true,
+          expectedType: ParameterType.STRING
+        },
+        age: {
+          label: 'Age',
+          expectedType: ParameterType.NUMBER,
+          default: 18
+        }
+      }
+    }, event);
+    
+    // 3. Process business logic
+    const user = await updateUser(params.userId, {
+      email: params.email,
+      age: params.age
+    });
+    
+    // 4. Return success response
+    return {
+      statusCode: 200,
+      body: JSON.stringify(user)
+    };
+    
+  } catch (error) {
+    // 5. Handle errors with proper HTTP responses
+    if (error instanceof UnprocessableEntity || error instanceof NotFound) {
+      return error.toLambdaResponse();
+    }
+    
+    throw error;
+  }
+};
+```
+
+### Lambda Event Logging
+
+Log Lambda events for tracking and debugging in production. Supports API Gateway, SQS, SNS, and EventBridge events.
+
+```typescript
+import { logApiGatewayEvent, logSqsEvent, logSnsEvent, logEventBridgeEvent } from 'awpaki';
+import { APIGatewayProxyEvent, SQSEvent, Context } from 'aws-lambda';
+
+// API Gateway events
+export const apiHandler = async (event: APIGatewayProxyEvent, context: Context) => {
+  logApiGatewayEvent(event, context);
+  // Logs: [API Gateway Request] { httpMethod, path, sourceIp, ... }
+  
+  // ... your handler logic
+};
+
+// SQS events
+export const sqsHandler = async (event: SQSEvent, context: Context) => {
+  logSqsEvent(event, context);
+  // Logs: [SQS Event] { recordCount, messageIds, ... }
+  
+  // ... your handler logic
+};
+
+// Control via environment variable
+// Set LOG_LEVEL=debug for full details
+// Set LOG_LEVEL=info for standard logging (default)
+// Set LOG_LEVEL=none to disable logging
 ```
 
 ### parseJsonBody
@@ -438,6 +545,133 @@ Each parameter config supports:
 - `headers` - HTTP headers (with case-insensitive support)
 - `body` - Request body (auto-parsed JSON)
 - Custom nested paths
+
+---
+
+### Loggers
+
+Lambda event logging utilities for tracking and debugging in production environments.
+
+#### `logApiGatewayEvent(event: APIGatewayProxyEvent, context: Context, config?: LogConfig): void`
+
+Logs API Gateway events with HTTP details.
+
+**Logged Information:**
+- HTTP method and path
+- Query and path parameters
+- Source IP and user agent
+- Request ID and timestamp
+- Stage and API ID
+
+**Example:**
+```typescript
+import { logApiGatewayEvent } from 'awpaki';
+import { APIGatewayProxyEvent, Context } from 'aws-lambda';
+
+export const handler = async (event: APIGatewayProxyEvent, context: Context) => {
+  logApiGatewayEvent(event, context);
+  // Logs: [API Gateway Request] { httpMethod: 'GET', path: '/users/123', ... }
+};
+```
+
+#### `logSqsEvent(event: SQSEvent, context: Context, config?: LogConfig): void`
+
+Logs SQS events with message details.
+
+**Logged Information:**
+- Message ID and count
+- Message body (truncated in INFO, full in DEBUG)
+- Queue ARN and region
+- Message attributes
+
+**Example:**
+```typescript
+import { logSqsEvent } from 'awpaki';
+import { SQSEvent, Context } from 'aws-lambda';
+
+export const handler = async (event: SQSEvent, context: Context) => {
+  logSqsEvent(event, context);
+  // Logs: [SQS Event] { recordCount: 1, records: [...] }
+};
+```
+
+#### `logSnsEvent(event: SNSEvent, context: Context, config?: LogConfig): void`
+
+Logs SNS events with message details.
+
+**Logged Information:**
+- Message ID and subject
+- Message content (truncated in INFO, full in DEBUG)
+- Topic ARN
+- Timestamp and message attributes
+
+**Example:**
+```typescript
+import { logSnsEvent } from 'awpaki';
+import { SNSEvent, Context } from 'aws-lambda';
+
+export const handler = async (event: SNSEvent, context: Context) => {
+  logSnsEvent(event, context);
+  // Logs: [SNS Event] { recordCount: 1, records: [...] }
+};
+```
+
+#### `logEventBridgeEvent(event: EventBridgeEvent, context: Context, config?: LogConfig): void`
+
+Logs EventBridge (CloudWatch Events) including cron/scheduled events.
+
+**Logged Information:**
+- Event ID and source
+- Detail type and time
+- Resources and region
+- Event detail (keys in INFO, full object in DEBUG)
+
+**Example:**
+```typescript
+import { logEventBridgeEvent } from 'awpaki';
+import { EventBridgeEvent, Context } from 'aws-lambda';
+
+export const handler = async (event: EventBridgeEvent<string, any>, context: Context) => {
+  logEventBridgeEvent(event, context);
+  // Logs: [EventBridge Event] { eventSource: 'aws.events', detailType: 'Scheduled Event', ... }
+};
+```
+
+#### Log Levels
+
+Control logging verbosity via `LOG_LEVEL` environment variable:
+
+```typescript
+enum LogLevel {
+  NONE = 'none',      // No logging
+  ERROR = 'error',    // Only errors
+  WARN = 'warn',      // Warnings and errors
+  INFO = 'info',      // Standard info (default)
+  DEBUG = 'debug',    // Full details (includes headers, full bodies)
+}
+```
+
+**Environment Variable:**
+```bash
+# In your Lambda environment
+LOG_LEVEL=info      # Default - standard logging
+LOG_LEVEL=debug     # Full details (headers, complete messages)
+LOG_LEVEL=none      # Disable logging
+```
+
+**Custom Configuration:**
+```typescript
+import { logApiGatewayEvent, LogLevel } from 'awpaki';
+
+logApiGatewayEvent(event, context, {
+  envVar: 'CUSTOM_LOG_LEVEL',        // Custom env var name
+  defaultLevel: LogLevel.DEBUG,       // Default if env var not set
+  additionalData: {                   // Extra data to include
+    version: '1.0.0',
+    environment: 'production'
+  }
+});
+```
 
 ---
 
