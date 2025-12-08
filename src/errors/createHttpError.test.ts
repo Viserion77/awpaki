@@ -180,7 +180,7 @@ describe('createHttpError', () => {
   describe('Lambda response integration', () => {
     it('should generate proper Lambda response', () => {
       const error = createHttpError(HttpStatus.NOT_FOUND, 'User not found', { userId: 123 });
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
       expect(response.body).toContain('User not found');
@@ -193,7 +193,7 @@ describe('createHttpError', () => {
     it('should include custom headers in Lambda response', () => {
       const headers = { 'X-Custom': 'value' };
       const error = createHttpError(HttpStatus.UNAUTHORIZED, 'Token expired', undefined, headers);
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       expect(response.headers).toMatchObject(headers);
     });

@@ -20,3 +20,14 @@ export {
   isValidHttpStatus,
   getHttpStatusName,
 } from './HttpStatus';
+export {
+  handleApiGatewayError,
+  handleGenericError,
+  handleSqsError,
+  handleSnsError,
+  handleEventBridgeError,
+  handleS3Error,
+  handleDynamoDBStreamError,
+  type ApiGatewayErrorResponse,
+  type GenericLambdaErrorResponse,
+} from './handleLambdaError';

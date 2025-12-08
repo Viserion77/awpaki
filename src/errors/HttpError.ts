@@ -12,6 +12,11 @@ export class HttpError extends Error {
   public readonly statusCode: number;
   public readonly data?: Record<string, any>;
   public readonly headers?: Record<string, string | boolean | number>;
+  private readonly lambdaMetadata: {
+    logStreamName?: string;
+    executionEnv?: string;
+    functionName?: string;
+  };
 
   constructor(
     message: string,
@@ -24,6 +29,13 @@ export class HttpError extends Error {
     this.statusCode = statusCode;
     this.data = data;
     this.headers = headers;
+
+    // Capture Lambda environment metadata
+    this.lambdaMetadata = {
+      logStreamName: process.env.AWS_LAMBDA_LOG_STREAM_NAME,
+      executionEnv: process.env.AWS_EXECUTION_ENV,
+      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+    };
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {
@@ -40,8 +52,8 @@ export class HttpError extends Error {
   }
 
   /**
-   * Returns an AWS Lambda proxy response object
-   * Useful for returning errors in Lambda functions after instanceof check
+   * Returns an AWS API Gateway response object
+   * Useful for returning errors in API Gateway Lambda functions
    * 
    * @example
    * ```typescript
@@ -49,17 +61,26 @@ export class HttpError extends Error {
    *   // your code
    * } catch (error) {
    *   if (error instanceof HttpError) {
-   *     return error.toLambdaResponse();
+   *     return error.toApiGatewayResponse();
    *   }
    *   throw error;
    * }
    * ```
    */
-  public toLambdaResponse(additionalHeaders?: Record<string, string | boolean | number>): APIGatewayProxyResult {
+  public toApiGatewayResponse(additionalHeaders?: Record<string, string | boolean | number>): APIGatewayProxyResult {
     const responseBody: any = { message: this.message };
     
     if (this.data) {
       responseBody.data = this.data;
+    }
+
+    // Include Lambda metadata if available
+    if (this.lambdaMetadata.logStreamName || this.lambdaMetadata.executionEnv || this.lambdaMetadata.functionName) {
+      responseBody['$x-custom-metadata'] = {
+        ...(this.lambdaMetadata.logStreamName && { logStreamName: this.lambdaMetadata.logStreamName }),
+        ...(this.lambdaMetadata.executionEnv && { executionEnv: this.lambdaMetadata.executionEnv }),
+        ...(this.lambdaMetadata.functionName && { functionName: this.lambdaMetadata.functionName }),
+      };
     }
 
     return {
@@ -70,6 +91,36 @@ export class HttpError extends Error {
         ...this.headers,
         ...additionalHeaders,
       },
+    };
+  }
+
+  /**
+   * Returns a structured error response for non-HTTP Lambda triggers
+   * Used for SQS, SNS, EventBridge, S3, and DynamoDB Stream triggers
+   * 
+   * @example
+   * ```typescript
+   * try {
+   *   // your code
+   * } catch (error) {
+   *   if (error instanceof HttpError) {
+   *     return error.toGenericResponse();
+   *   }
+   *   throw error;
+   * }
+   * ```
+   */
+  public toGenericResponse(): {
+    error: string;
+    message: string;
+    statusCode: number;
+    data?: Record<string, any>;
+  } {
+    return {
+      error: this.constructor.name,
+      message: this.message,
+      statusCode: this.statusCode,
+      data: this.data,
     };
   }
 }

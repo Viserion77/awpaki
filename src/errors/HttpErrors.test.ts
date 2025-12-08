@@ -49,7 +49,7 @@ describe('HttpError', () => {
 
     it('should generate Lambda response', () => {
       const error = new HttpError('Test error', HttpStatus.BAD_REQUEST);
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
       expect(response.body).toBe(JSON.stringify({ message: 'Test error' }));
@@ -59,18 +59,51 @@ describe('HttpError', () => {
     it('should include data in Lambda response', () => {
       const data = { field: 'email' };
       const error = new HttpError('Test error', HttpStatus.BAD_REQUEST, data);
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       const body = JSON.parse(response.body);
       expect(body.data).toEqual(data);
     });
 
     it('should merge headers in Lambda response', () => {
-      const error = new HttpError('Test error', HttpStatus.BAD_REQUEST, undefined, { 'X-Custom': 'value' });
-      const response = error.toLambdaResponse({ 'X-Extra': 'extra' });
+      const error = new HttpError('Error', HttpStatus.BAD_REQUEST, undefined, { 'X-Custom': 'value' });
+      const response = error.toApiGatewayResponse({ 'X-Extra': 'extra' });
       
       expect(response.headers).toHaveProperty('X-Custom', 'value');
       expect(response.headers).toHaveProperty('X-Extra', 'extra');
+    });
+
+    it('should include Lambda metadata in API Gateway response when available', () => {
+      process.env.AWS_LAMBDA_LOG_STREAM_NAME = '2024/12/08/[$LATEST]abc123';
+      process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+
+      const error = new HttpError('Error with metadata', HttpStatus.INTERNAL_SERVER_ERROR);
+      const response = error.toApiGatewayResponse();
+      
+      const body = JSON.parse(response.body);
+      expect(body['$x-custom-metadata']).toBeDefined();
+      expect(body['$x-custom-metadata'].logStreamName).toBe('2024/12/08/[$LATEST]abc123');
+      expect(body['$x-custom-metadata'].executionEnv).toBe('AWS_Lambda_nodejs20.x');
+      expect(body['$x-custom-metadata'].functionName).toBe('my-test-function');
+
+      // Cleanup
+      delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
+      delete process.env.AWS_EXECUTION_ENV;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    it('should not include empty Lambda metadata', () => {
+      // Ensure env vars are not set
+      delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
+      delete process.env.AWS_EXECUTION_ENV;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+
+      const error = new HttpError('Error without metadata', HttpStatus.BAD_REQUEST);
+      const response = error.toApiGatewayResponse();
+      
+      const body = JSON.parse(response.body);
+      expect(body['$x-custom-metadata']).toBeUndefined();
     });
   });
 
@@ -161,7 +194,7 @@ describe('HttpError', () => {
     it('should include errors in Lambda response', () => {
       const errors = { email: 'Invalid format', age: 'Must be positive' };
       const error = new UnprocessableEntity('Validation failed', { errors });
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       const body = JSON.parse(response.body);
       expect(body.message).toBe('Validation failed');
@@ -170,7 +203,7 @@ describe('HttpError', () => {
 
     it('should work with single error', () => {
       const error = new UnprocessableEntity('Single validation error');
-      const response = error.toLambdaResponse();
+      const response = error.toApiGatewayResponse();
       
       const body = JSON.parse(response.body);
       expect(body.message).toBe('Single validation error');
@@ -264,7 +297,7 @@ describe('HttpError', () => {
         throw new BadRequest('Invalid input');
       } catch (error) {
         if (error instanceof HttpError) {
-          const response = error.toLambdaResponse();
+          const response = error.toApiGatewayResponse();
           expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
         }
       }
