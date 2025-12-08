@@ -14,23 +14,28 @@ import {
   logEventBridgeEvent,
   logS3Event,
   logDynamoDBStreamEvent,
-  LogLevel,
 } from './logLambdaEvent';
 
-// Mock console.info
+// Mock console methods
 const originalConsoleInfo = console.info;
-let consoleOutput: any[] = [];
+const originalConsoleDebug = console.debug;
+let consoleInfoOutput: any[] = [];
+let consoleDebugOutput: any[] = [];
 
 beforeEach(() => {
-  consoleOutput = [];
+  consoleInfoOutput = [];
+  consoleDebugOutput = [];
   console.info = jest.fn((...args) => {
-    consoleOutput.push(args);
+    consoleInfoOutput.push(args);
   });
-  delete process.env.LOG_LEVEL;
+  console.debug = jest.fn((...args) => {
+    consoleDebugOutput.push(args);
+  });
 });
 
 afterEach(() => {
   console.info = originalConsoleInfo;
+  console.debug = originalConsoleDebug;
 });
 
 const createMockContext = (): Context => ({
@@ -155,15 +160,14 @@ const createMockEventBridgeEvent = (): EventBridgeEvent<string, any> => ({
 });
 
 describe('logApiGatewayEvent', () => {
-  it('should log API Gateway event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log API Gateway event info', () => {
     const event = createMockApiGatewayEvent();
     const context = createMockContext();
 
     logApiGatewayEvent(event, context);
 
-    expect(consoleOutput).toHaveLength(1);
-    const [message, logData] = consoleOutput[0];
+    expect(consoleInfoOutput).toHaveLength(1);
+    const [message, logData] = consoleInfoOutput[0];
     expect(message).toBe('Entry API Gateway test-function:api-request-id');
     expect(logData.eventType).toBeUndefined();
     expect(logData.requestId).toBe('test-request-id-123');
@@ -173,30 +177,20 @@ describe('logApiGatewayEvent', () => {
     expect(logData.sourceIp).toBe('192.168.1.1');
   });
 
-  it('should not log when LOG_LEVEL is none', () => {
-    process.env.LOG_LEVEL = 'none';
+  it('should log all headers in debug output', () => {
     const event = createMockApiGatewayEvent();
     const context = createMockContext();
 
     logApiGatewayEvent(event, context);
 
-    expect(consoleOutput).toHaveLength(0);
-  });
-
-  it('should include all headers in DEBUG mode', () => {
-    process.env.LOG_LEVEL = 'debug';
-    const event = createMockApiGatewayEvent();
-    const context = createMockContext();
-
-    logApiGatewayEvent(event, context);
-
-    const [, logData] = consoleOutput[0];
-    expect(logData.headers).toHaveProperty('user-agent');
-    expect(logData.headers).toHaveProperty('x-forwarded-for');
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, headers] = consoleDebugOutput[0];
+    expect(message).toBe('API Gateway Headers test-function:api-request-id');
+    expect(headers).toHaveProperty('user-agent');
+    expect(headers).toHaveProperty('x-forwarded-for');
   });
 
   it('should include additional data when provided', () => {
-    process.env.LOG_LEVEL = 'info';
     const event = createMockApiGatewayEvent();
     const context = createMockContext();
 
@@ -204,185 +198,119 @@ describe('logApiGatewayEvent', () => {
       additionalData: { customField: 'customValue' },
     });
 
-    const [, logData] = consoleOutput[0];
+    const [, logData] = consoleInfoOutput[0];
     expect(logData.customField).toBe('customValue');
   });
 });
 
 describe('logSqsEvent', () => {
-  it('should log SQS event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log SQS event info', () => {
     const event = createMockSqsEvent();
     const context = createMockContext();
 
     logSqsEvent(event, context);
 
-    // Deve ter 2 logs: 1 geral + 1 por record
-    expect(consoleOutput).toHaveLength(2);
+    // Should have 2 info logs: 1 general + 1 per record
+    expect(consoleInfoOutput).toHaveLength(2);
     
-    // Validar log geral do evento
-    const [eventMessage, eventData] = consoleOutput[0];
+    // Validate general event log
+    const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry SQS Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
     
-    // Validar log do record individual
-    const [recordMessage, recordData] = consoleOutput[1];
+    // Validate individual record log
+    const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('SQS Record test-function:test-request-id-123:msg-123');
     expect(recordData.messageId).toBe('msg-123');
     expect(recordData.recordIndex).toBe(1);
     expect(recordData.totalRecords).toBe(1);
   });
 
-  it('should truncate body in INFO mode', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log full body in debug output', () => {
     const event = createMockSqsEvent();
     const context = createMockContext();
 
     logSqsEvent(event, context);
 
-    const [, recordData] = consoleOutput[1];
-    expect(recordData.body).toContain('...');
-  });
-
-  it('should include full body in DEBUG mode', () => {
-    process.env.LOG_LEVEL = 'debug';
-    const event = createMockSqsEvent();
-    const context = createMockContext();
-
-    logSqsEvent(event, context);
-
-    const [, recordData] = consoleOutput[1];
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, recordData] = consoleDebugOutput[0];
+    expect(message).toBe('SQS Record Full Body test-function:test-request-id-123:msg-123');
     expect(recordData.body).toBe(JSON.stringify({ userId: 123, action: 'update' }));
+    expect(recordData.receiptHandle).toBe('receipt-handle-xyz');
   });
 });
 
 describe('logSnsEvent', () => {
-  it('should log SNS event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log SNS event info', () => {
     const event = createMockSnsEvent();
     const context = createMockContext();
 
     logSnsEvent(event, context);
 
-    // Deve ter 2 logs: 1 geral + 1 por record
-    expect(consoleOutput).toHaveLength(2);
+    // Should have 2 info logs: 1 general + 1 per record
+    expect(consoleInfoOutput).toHaveLength(2);
     
-    // Validar log geral do evento
-    const [eventMessage, eventData] = consoleOutput[0];
+    // Validate general event log
+    const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry SNS Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
     
-    // Validar log do record individual
-    const [recordMessage, recordData] = consoleOutput[1];
+    // Validate individual record log
+    const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('SNS Record test-function:test-request-id-123:sns-msg-123');
     expect(recordData.messageId).toBe('sns-msg-123');
     expect(recordData.subject).toBe('User Created Event');
     expect(recordData.topicArn).toBe('arn:aws:sns:us-east-1:123456789012:my-topic');
   });
 
-  it('should truncate message in INFO mode', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log full message in debug output', () => {
     const event = createMockSnsEvent();
     const context = createMockContext();
 
     logSnsEvent(event, context);
 
-    const [, recordData] = consoleOutput[1];
-    expect(recordData.message).toContain('...');
-  });
-
-  it('should include full message in DEBUG mode', () => {
-    process.env.LOG_LEVEL = 'debug';
-    const event = createMockSnsEvent();
-    const context = createMockContext();
-
-    logSnsEvent(event, context);
-
-    const [, recordData] = consoleOutput[1];
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, recordData] = consoleDebugOutput[0];
+    expect(message).toBe('SNS Record Full Message test-function:test-request-id-123:sns-msg-123');
     expect(recordData.message).toBe(JSON.stringify({ userId: 123, event: 'user-created' }));
   });
 });
 
 describe('logEventBridgeEvent', () => {
-  it('should log EventBridge event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log EventBridge event info', () => {
     const event = createMockEventBridgeEvent();
     const context = createMockContext();
 
     logEventBridgeEvent(event, context);
 
-    expect(consoleOutput).toHaveLength(1);
-    const [message, logData] = consoleOutput[0];
+    expect(consoleInfoOutput).toHaveLength(1);
+    const [message, logData] = consoleInfoOutput[0];
     expect(message).toBe('Entry EventBridge test-function:event-123');
     expect(logData.eventType).toBeUndefined();
     expect(logData.eventId).toBe('event-123');
     expect(logData.eventSource).toBe('aws.events');
     expect(logData.detailType).toBe('Scheduled Event');
+    expect(logData.detailKeys).toBe('scheduledTime, cronExpression');
   });
 
-  it('should show detail keys in INFO mode', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log full detail in debug output', () => {
     const event = createMockEventBridgeEvent();
     const context = createMockContext();
 
     logEventBridgeEvent(event, context);
 
-    const [, logData] = consoleOutput[0];
-    expect(typeof logData.detail).toBe('string');
-    expect(logData.detail).toContain('scheduledTime');
-  });
-
-  it('should show full detail in DEBUG mode', () => {
-    process.env.LOG_LEVEL = 'debug';
-    const event = createMockEventBridgeEvent();
-    const context = createMockContext();
-
-    logEventBridgeEvent(event, context);
-
-    const [, logData] = consoleOutput[0];
-    expect(typeof logData.detail).toBe('object');
-    expect(logData.detail.scheduledTime).toBe('2025-12-08T10:00:00Z');
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, logData] = consoleDebugOutput[0];
+    expect(message).toBe('EventBridge Detail test-function:event-123');
+    expect(logData).toEqual({
+      scheduledTime: '2025-12-08T10:00:00Z',
+      cronExpression: 'cron(0 10 * * ? *)',
+    });
   });
 });
 
-
-
-describe('LogLevel environment variable', () => {
-  it('should use custom environment variable name', () => {
-    process.env.CUSTOM_LOG_LEVEL = 'none';
-    const event = createMockApiGatewayEvent();
-    const context = createMockContext();
-
-    logApiGatewayEvent(event, context, {
-      envVar: 'CUSTOM_LOG_LEVEL',
-    });
-
-    expect(consoleOutput).toHaveLength(0);
-  });
-
-  it('should use default level when env var not set', () => {
-    const event = createMockApiGatewayEvent();
-    const context = createMockContext();
-
-    logApiGatewayEvent(event, context, {
-      defaultLevel: LogLevel.NONE,
-    });
-
-    expect(consoleOutput).toHaveLength(0);
-  });
-
-  it('should fallback to INFO when invalid level provided', () => {
-    process.env.LOG_LEVEL = 'invalid';
-    const event = createMockApiGatewayEvent();
-    const context = createMockContext();
-
-    logApiGatewayEvent(event, context);
-
-    expect(consoleOutput).toHaveLength(1);
-  });
-});
 
 const createMockS3Event = (): S3Event => ({
   Records: [
@@ -452,49 +380,46 @@ const createMockDynamoDBStreamEvent = (): DynamoDBStreamEvent => ({
 });
 
 describe('logS3Event', () => {
-  it('should log S3 event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log S3 event info', () => {
     const event = createMockS3Event();
     const context = createMockContext();
 
     logS3Event(event, context);
 
-    // Deve ter 2 logs: 1 geral + 1 por record
-    expect(consoleOutput).toHaveLength(2);
+    // Should have 2 info logs: 1 general + 1 per record
+    expect(consoleInfoOutput).toHaveLength(2);
     
-    // Validar log geral do evento
-    const [eventMessage, eventData] = consoleOutput[0];
+    // Validate general event log
+    const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry S3 Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
     
-    // Validar log do record individual
-    const [recordMessage, recordData] = consoleOutput[1];
+    // Validate individual record log
+    const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('S3 Record test-function:test-request-id-123:s3-request-123');
     expect(recordData.bucketName).toBe('my-bucket');
     expect(recordData.objectKey).toBe('uploads/file.txt');
   });
 
   it('should decode S3 object key', () => {
-    process.env.LOG_LEVEL = 'info';
     const event = createMockS3Event();
     event.Records[0].s3.object.key = 'uploads/my+file+with+spaces.txt';
     const context = createMockContext();
 
     logS3Event(event, context);
 
-    const [, recordData] = consoleOutput[1];
+    const [, recordData] = consoleInfoOutput[1];
     expect(recordData.objectKey).toBe('uploads/my file with spaces.txt');
   });
 
   it('should include object details', () => {
-    process.env.LOG_LEVEL = 'info';
     const event = createMockS3Event();
     const context = createMockContext();
 
     logS3Event(event, context);
 
-    const [, recordData] = consoleOutput[1];
+    const [, recordData] = consoleInfoOutput[1];
     expect(recordData.eventName).toBe('ObjectCreated:Put');
     expect(recordData.objectSize).toBe(1024);
     expect(recordData.objectETag).toBe('abc123def456');
@@ -502,50 +427,48 @@ describe('logS3Event', () => {
 });
 
 describe('logDynamoDBStreamEvent', () => {
-  it('should log DynamoDB Stream event with INFO level', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should log DynamoDB Stream event info', () => {
     const event = createMockDynamoDBStreamEvent();
     const context = createMockContext();
 
     logDynamoDBStreamEvent(event, context);
 
-    // Deve ter 2 logs: 1 geral + 1 por record
-    expect(consoleOutput).toHaveLength(2);
+    // Should have 2 info logs: 1 general + 1 per record
+    expect(consoleInfoOutput).toHaveLength(2);
     
-    // Validar log geral do evento
-    const [eventMessage, eventData] = consoleOutput[0];
+    // Validate general event log
+    const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry DynamoDB Stream Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
     
-    // Validar log do record individual
-    const [recordMessage, recordData] = consoleOutput[1];
+    
+    // Validate individual record log
+    const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('DynamoDB Stream Record test-function:test-request-id-123:ddb-event-123');
     expect(recordData.eventName).toBe('INSERT');
   });
 
-  it('should show keys as string in INFO mode', () => {
-    process.env.LOG_LEVEL = 'info';
+  it('should show keys as string in info output', () => {
     const event = createMockDynamoDBStreamEvent();
     const context = createMockContext();
 
     logDynamoDBStreamEvent(event, context);
 
-    const [, recordData] = consoleOutput[1];
-    expect(typeof recordData.keys).toBe('string');
+    const [, recordData] = consoleInfoOutput[1];
     expect(recordData.keys).toBe('id');
-    expect(typeof recordData.newImage).toBe('string');
-    expect(recordData.newImage).toContain('id');
+    expect(recordData.newImageKeys).toBe('id, name, email');
   });
 
-  it('should show full data in DEBUG mode', () => {
-    process.env.LOG_LEVEL = 'debug';
+  it('should show full data in debug output', () => {
     const event = createMockDynamoDBStreamEvent();
     const context = createMockContext();
 
     logDynamoDBStreamEvent(event, context);
 
-    const [, recordData] = consoleOutput[1];
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, recordData] = consoleDebugOutput[0];
+    expect(message).toBe('DynamoDB Stream Full Data test-function:test-request-id-123:ddb-event-123');
     expect(typeof recordData.keys).toBe('object');
     expect(recordData.keys).toHaveProperty('id');
     expect(typeof recordData.newImage).toBe('object');
@@ -554,15 +477,14 @@ describe('logDynamoDBStreamEvent', () => {
   });
 
   it('should extract table name from ARN', () => {
-    process.env.LOG_LEVEL = 'info';
     const event = createMockDynamoDBStreamEvent();
     const context = createMockContext();
 
     logDynamoDBStreamEvent(event, context);
 
-    const [, eventData] = consoleOutput[0];
+    const [, eventData] = consoleInfoOutput[0];
     expect(eventData.tableName).toBe('users');
-    const [, recordData] = consoleOutput[1];
+    const [, recordData] = consoleInfoOutput[1];
     expect(recordData.tableName).toBe('users');
   });
 });

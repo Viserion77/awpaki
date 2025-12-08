@@ -9,52 +9,11 @@ import {
 } from 'aws-lambda';
 
 /**
- * Log levels for Lambda event logging
- */
-export enum LogLevel {
-  NONE = 'none',
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  DEBUG = 'debug',
-}
-
-/**
  * Configuration for Lambda event logging
  */
 export interface LogConfig {
-  /** Log level from environment variable (default: LOG_LEVEL) */
-  envVar?: string;
-  /** Default log level if environment variable not set */
-  defaultLevel?: LogLevel;
   /** Additional custom data to log */
   additionalData?: Record<string, any>;
-}
-
-/**
- * Gets the current log level from environment variable
- */
-function getLogLevel(config?: LogConfig): LogLevel {
-  const envVar = config?.envVar || 'LOG_LEVEL';
-  const envLevel = process.env[envVar]?.toLowerCase();
-  
-  const validLevels = Object.values(LogLevel);
-  if (envLevel && validLevels.includes(envLevel as LogLevel)) {
-    return envLevel as LogLevel;
-  }
-  
-  return config?.defaultLevel || LogLevel.INFO;
-}
-
-/**
- * Checks if current log level allows logging
- */
-function shouldLog(currentLevel: LogLevel, requiredLevel: LogLevel): boolean {
-  const levels = [LogLevel.NONE, LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO, LogLevel.DEBUG];
-  const currentIndex = levels.indexOf(currentLevel);
-  const requiredIndex = levels.indexOf(requiredLevel);
-  
-  return currentIndex >= requiredIndex;
 }
 
 /**
@@ -77,12 +36,6 @@ export function logApiGatewayEvent(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${event.requestContext.requestId}`;
   
   const logData = {
@@ -99,14 +52,13 @@ export function logApiGatewayEvent(
     requestTimeEpoch: event.requestContext.requestTimeEpoch,
     queryStringParameters: event.queryStringParameters,
     pathParameters: event.pathParameters,
-    headers: shouldLog(logLevel, LogLevel.DEBUG) ? event.headers : {
-      'user-agent': event.headers['user-agent'] || event.headers['User-Agent'],
-      'x-forwarded-for': event.headers['x-forwarded-for'] || event.headers['X-Forwarded-For'],
-    },
     ...(config?.additionalData || {}),
   };
 
   console.info(`Entry API Gateway ${identifier}`, logData);
+  
+  // Log headers in debug level
+  console.debug(`API Gateway Headers ${identifier}`, event.headers);
 }
 
 /**
@@ -129,12 +81,6 @@ export function logSqsEvent(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   
   // Log geral do evento
@@ -157,8 +103,7 @@ export function logSqsEvent(
       recordIndex: index + 1,
       totalRecords: event.Records.length,
       messageId: record.messageId,
-      receiptHandle: shouldLog(logLevel, LogLevel.DEBUG) ? record.receiptHandle : '***',
-      body: shouldLog(logLevel, LogLevel.DEBUG) ? record.body : `${record.body.substring(0, 100)}...`,
+      body: `${record.body.substring(0, 100)}...`,
       attributes: record.attributes,
       messageAttributes: record.messageAttributes,
       md5OfBody: record.md5OfBody,
@@ -167,6 +112,13 @@ export function logSqsEvent(
     };
 
     console.info(`SQS Record ${recordIdentifier}`, recordData);
+    
+    // Log full body in debug
+    console.debug(`SQS Record Full Body ${recordIdentifier}`, {
+      messageId: record.messageId,
+      body: record.body,
+      receiptHandle: record.receiptHandle,
+    });
   }
 }
 
@@ -190,12 +142,6 @@ export function logSnsEvent(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   
   // Log geral do evento
@@ -219,9 +165,7 @@ export function logSnsEvent(
       totalRecords: event.Records.length,
       messageId: record.Sns.MessageId,
       subject: record.Sns.Subject,
-      message: shouldLog(logLevel, LogLevel.DEBUG) 
-        ? record.Sns.Message 
-        : `${record.Sns.Message.substring(0, 100)}...`,
+      message: `${record.Sns.Message.substring(0, 100)}...`,
       timestamp: record.Sns.Timestamp,
       topicArn: record.Sns.TopicArn,
       type: record.Sns.Type,
@@ -229,6 +173,12 @@ export function logSnsEvent(
     };
 
     console.info(`SNS Record ${recordIdentifier}`, recordData);
+    
+    // Log full message in debug
+    console.debug(`SNS Record Full Message ${recordIdentifier}`, {
+      messageId: record.Sns.MessageId,
+      message: record.Sns.Message,
+    });
   }
 }
 
@@ -253,12 +203,6 @@ export function logEventBridgeEvent(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${event.id}`;
   
   const logData = {
@@ -273,13 +217,14 @@ export function logEventBridgeEvent(
     region: event.region,
     account: event.account,
     resources: event.resources,
-    detail: shouldLog(logLevel, LogLevel.DEBUG) 
-      ? event.detail 
-      : Object.keys(event.detail || {}).join(', '),
+    detailKeys: Object.keys(event.detail || {}).join(', '),
     ...(config?.additionalData || {}),
   };
 
   console.info(`Entry EventBridge ${identifier}`, logData);
+  
+  // Log full detail in debug
+  console.debug(`EventBridge Detail ${identifier}`, event.detail);
 }
 
 /**
@@ -302,12 +247,6 @@ export function logS3Event(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   
   // Log geral do evento
@@ -367,12 +306,6 @@ export function logDynamoDBStreamEvent(
   context: Context,
   config?: LogConfig
 ): void {
-  const logLevel = getLogLevel(config);
-  
-  if (!shouldLog(logLevel, LogLevel.INFO)) {
-    return;
-  }
-
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   const tableName = event.Records[0]?.eventSourceARN?.split('/')[1];
   
@@ -405,18 +338,20 @@ export function logDynamoDBStreamEvent(
       streamViewType: record.dynamodb?.StreamViewType,
       sequenceNumber: record.dynamodb?.SequenceNumber,
       sizeBytes: record.dynamodb?.SizeBytes,
-      keys: shouldLog(logLevel, LogLevel.DEBUG) 
-        ? record.dynamodb?.Keys 
-        : Object.keys(record.dynamodb?.Keys || {}).join(', '),
-      newImage: shouldLog(logLevel, LogLevel.DEBUG)
-        ? record.dynamodb?.NewImage
-        : record.dynamodb?.NewImage ? Object.keys(record.dynamodb.NewImage).join(', ') : undefined,
-      oldImage: shouldLog(logLevel, LogLevel.DEBUG)
-        ? record.dynamodb?.OldImage
-        : record.dynamodb?.OldImage ? Object.keys(record.dynamodb.OldImage).join(', ') : undefined,
+      keys: Object.keys(record.dynamodb?.Keys || {}).join(', '),
+      newImageKeys: record.dynamodb?.NewImage ? Object.keys(record.dynamodb.NewImage).join(', ') : undefined,
+      oldImageKeys: record.dynamodb?.OldImage ? Object.keys(record.dynamodb.OldImage).join(', ') : undefined,
     };
 
     console.info(`DynamoDB Stream Record ${recordIdentifier}`, recordData);
+    
+    // Log full data in debug
+    console.debug(`DynamoDB Stream Full Data ${recordIdentifier}`, {
+      eventID: record.eventID,
+      keys: record.dynamodb?.Keys,
+      newImage: record.dynamodb?.NewImage,
+      oldImage: record.dynamodb?.OldImage,
+    });
   }
 }
 
