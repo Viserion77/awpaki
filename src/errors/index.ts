@@ -15,3 +15,8 @@ export {
   HTTP_ERROR_MAP,
   createHttpError,
 } from './HttpErrors';
+export {
+  HttpStatus,
+  isValidHttpStatus,
+  getHttpStatusName,
+} from './HttpStatus';

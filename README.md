@@ -186,6 +186,56 @@ Parses a JSON stringified body with enhanced null handling and validation.
 
 ### Errors
 
+#### HTTP Status Enum
+
+Type-safe HTTP status codes with validation helpers:
+
+```typescript
+import { HttpStatus, isValidHttpStatus, getHttpStatusName } from 'awpaki';
+
+// Use enum instead of magic numbers
+const schema = {
+  pathParameters: {
+    id: {
+      label: 'User ID',
+      required: true,
+      statusCodeError: HttpStatus.NOT_FOUND  // 404 - Type-safe!
+    }
+  },
+  headers: {
+    authorization: {
+      label: 'Authorization',
+      required: true,
+      statusCodeError: HttpStatus.UNAUTHORIZED  // 401
+    }
+  }
+};
+
+// Validation helpers
+isValidHttpStatus(404);           // true
+isValidHttpStatus(999);           // false
+getHttpStatusName(404);           // "NotFound"
+getHttpStatusName(HttpStatus.NOT_FOUND); // "NotFound"
+```
+
+**Available Status Codes:**
+```typescript
+enum HttpStatus {
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  FORBIDDEN = 403,
+  NOT_FOUND = 404,
+  CONFLICT = 409,
+  PRECONDITION_FAILED = 412,
+  UNPROCESSABLE_ENTITY = 422,
+  TOO_MANY_REQUESTS = 429,
+  INTERNAL_SERVER_ERROR = 500,
+  NOT_IMPLEMENTED = 501,
+  BAD_GATEWAY = 502,
+  SERVICE_UNAVAILABLE = 503,
+}
+```
+
 #### HTTP Error Classes
 
 All error classes extend `HttpError` and include:
@@ -214,13 +264,19 @@ All error classes extend `HttpError` and include:
 Use `createHttpError()` to dynamically create the appropriate error based on status code:
 
 ```typescript
-import { createHttpError, HTTP_ERROR_MAP } from 'awpaki';
+import { createHttpError, HttpStatus } from 'awpaki';
 
-// Creates a NotFound error
-const error1 = createHttpError(404, 'User not found', { userId: 123 });
+// With enum (recommended)
+const error1 = createHttpError(HttpStatus.NOT_FOUND, 'User not found', { userId: 123 });
+
+// With number
+const error2 = createHttpError(404, 'User not found', { userId: 123 });
 
 // Creates a BadRequest error
-const error2 = createHttpError(400, 'Invalid input');
+const error3 = createHttpError(HttpStatus.BAD_REQUEST, 'Invalid input');
+
+// Creates an Unauthorized error
+const error4 = createHttpError(HttpStatus.UNAUTHORIZED, 'Token expired');
 
 // Creates an Unauthorized error
 const error3 = createHttpError(401, 'Token expired');
@@ -254,26 +310,28 @@ The `HTTP_ERROR_MAP` object maps status codes to error classes:
 The `extractEventParams` function uses `createHttpError()` internally, so specifying `statusCodeError` in your schema will automatically throw the correct error type:
 
 ```typescript
+import { HttpStatus } from 'awpaki';
+
 const schema = {
   pathParameters: {
     id: { 
       label: 'User ID', 
       required: true, 
-      statusCodeError: 404  // Will throw NotFound instead of UnprocessableEntity
+      statusCodeError: HttpStatus.NOT_FOUND  // Type-safe
     }
   },
   headers: {
     authorization: { 
       label: 'Authorization', 
       required: true, 
-      statusCodeError: 401  // Will throw Unauthorized
+      statusCodeError: HttpStatus.UNAUTHORIZED
     }
   },
   body: {
     email: { 
       label: 'Email', 
       required: true, 
-      statusCodeError: 400  // Will throw BadRequest
+      statusCodeError: HttpStatus.BAD_REQUEST
     }
   }
 };
@@ -289,6 +347,59 @@ try {
 ---
 
 ### Extractors
+
+#### Parameter Type Enum
+
+Type-safe parameter types for validation:
+
+```typescript
+import { ParameterType } from 'awpaki';
+
+enum ParameterType {
+  STRING = 'string',
+  NUMBER = 'number',
+  BOOLEAN = 'boolean',
+  OBJECT = 'object',
+  ARRAY = 'array',
+}
+```
+
+**Usage in extractEventParams:**
+
+```typescript
+import { ParameterType, HttpStatus } from 'awpaki';
+
+const schema = {
+  pathParameters: {
+    id: {
+      label: 'User ID',
+      required: true,
+      expectedType: ParameterType.STRING,  // Type-safe!
+      statusCodeError: HttpStatus.NOT_FOUND
+    }
+  },
+  queryStringParameters: {
+    limit: {
+      label: 'Result Limit',
+      expectedType: ParameterType.NUMBER,
+      default: 10
+    },
+    active: {
+      label: 'Active Filter',
+      expectedType: ParameterType.BOOLEAN
+    }
+  },
+  body: {
+    tags: {
+      label: 'Tags',
+      expectedType: ParameterType.ARRAY,
+      required: true
+    }
+  }
+};
+```
+
+---
 
 #### `extractEventParams<T>(schema: EventSchema, event: APIGatewayProxyEvent | Record<string, unknown>): T`
 

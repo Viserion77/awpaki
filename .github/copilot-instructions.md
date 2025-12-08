@@ -114,6 +114,78 @@ import * as parsers from 'awpaki/parsers';
 - Follow existing naming conventions
 - Keep functions pure and focused on single responsibilities
 
+## Type Safety Rules
+
+**CRITICAL**: This project enforces strict type safety. Follow these rules:
+
+### 1. Always Use Enums Instead of Magic Numbers/Strings
+
+❌ **NEVER do this:**
+```typescript
+statusCodeError: 401
+expectedType: 'string'
+throw new HttpError('Error', 404)
+```
+
+✅ **ALWAYS do this:**
+```typescript
+statusCodeError: HttpStatus.UNAUTHORIZED
+expectedType: ParameterType.STRING
+throw new NotFound('Error')
+```
+
+### 2. Available Enums
+
+- **HttpStatus**: For HTTP status codes (400, 401, 403, 404, 409, 412, 422, 429, 500, 501, 502, 503)
+  - Use: `HttpStatus.BAD_REQUEST`, `HttpStatus.NOT_FOUND`, etc.
+  - Import from: `'awpaki/errors'` or `'awpaki'`
+
+- **ParameterType**: For parameter type validation
+  - Use: `ParameterType.STRING`, `ParameterType.NUMBER`, `ParameterType.BOOLEAN`, `ParameterType.OBJECT`, `ParameterType.ARRAY`
+  - Import from: `'awpaki/extractors'` or `'awpaki'`
+
+### 3. Type Annotations Required
+
+- All function parameters must have explicit types
+- All return types must be explicitly declared
+- No `any` type unless absolutely necessary (document why)
+- Use generics for reusable type-safe functions
+
+### 4. Interface vs Type
+
+- Use `interface` for object shapes that may be extended
+- Use `type` for unions, intersections, and complex types
+- Use `enum` for fixed sets of values
+
+### 5. Examples
+
+```typescript
+// ✅ Good: Type-safe parameter configuration
+const schema: EventSchema = {
+  headers: {
+    authorization: {
+      label: 'Authorization',
+      required: true,
+      statusCodeError: HttpStatus.UNAUTHORIZED,
+      expectedType: ParameterType.STRING,
+    },
+  },
+};
+
+// ✅ Good: Type-safe error throwing
+if (!user) {
+  throw new NotFound('User not found');
+}
+
+// ✅ Good: Using enum in switch
+switch (paramType) {
+  case ParameterType.STRING:
+    return validateString(value);
+  case ParameterType.NUMBER:
+    return validateNumber(value);
+}
+```
+
 ## Testing
 
 - All test files should be co-located with source files (`.test.ts`)

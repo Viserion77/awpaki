@@ -1,5 +1,16 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { createHttpError } from '../errors';
+import { createHttpError, HttpStatus } from '../errors';
+
+/**
+ * Valid parameter types for validation
+ */
+export enum ParameterType {
+  STRING = 'string',
+  NUMBER = 'number',
+  BOOLEAN = 'boolean',
+  OBJECT = 'object',
+  ARRAY = 'array',
+}
 
 /**
  * Configuration for a single parameter extraction
@@ -9,12 +20,12 @@ export interface ParameterConfig {
   label: string;
   /** Whether the parameter is required */
   required?: boolean;
-  /** HTTP status code to return on error (default: 400, or 401 for unauthorized) */
-  statusCodeError?: number;
+  /** HTTP status code to return on error (use HttpStatus enum) */
+  statusCodeError?: HttpStatus;
   /** Custom error message when parameter is not found */
   notFoundError?: string;
-  /** Expected type for validation */
-  expectedType?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  /** Expected type for validation (use ParameterType enum) */
+  expectedType?: ParameterType;
   /** Custom error message when type is wrong */
   wrongTypeMessage?: string;
   /** Default value if parameter is not provided */
@@ -40,12 +51,12 @@ export interface EventSchema {
  * @param schema - Schema defining parameters to extract and their validation rules
  * @param event - AWS Lambda event (APIGatewayProxyEvent, SQS, SNS, DynamoDB, S3, or custom)
  * @returns Extracted and validated parameters
- * @throws {HttpError} Appropriate HTTP error based on statusCodeError configuration
- *                     - 400: BadRequest
- *                     - 401: Unauthorized
- *                     - 404: NotFound
- *                     - 422: UnprocessableEntity (default)
- *                     - Falls back to 501 InternalServerError for unmapped codes
+ * @throws {HttpError} Appropriate HTTP error based on statusCodeError (use HttpStatus enum)
+ *                     - HttpStatus.BAD_REQUEST (400): BadRequest
+ *                     - HttpStatus.UNAUTHORIZED (401): Unauthorized
+ *                     - HttpStatus.NOT_FOUND (404): NotFound
+ *                     - HttpStatus.UNPROCESSABLE_ENTITY (422): UnprocessableEntity (default)
+ *                     - Falls back to HttpStatus.NOT_IMPLEMENTED (501) for unmapped codes
  * 
  * @example
  * ```typescript
@@ -102,7 +113,7 @@ export interface EventSchema {
  *       label: 'Authorization',
  *       required: true,
  *       caseInsensitive: true,
- *       statusCodeError: 401,
+ *       statusCodeError: HttpStatus.UNAUTHORIZED,
  *       notFoundError: 'Authorization header required'
  *     }
  *   }
@@ -154,8 +165,8 @@ export function extractEventParams<T = Record<string, unknown>>(
     try {
       eventData.body = JSON.parse(event.body) as unknown;
     } catch (parseError) {
-      errors['body'] = [400, 'Invalid JSON in request body'];
-      errorStatusCodes['body'] = 400;
+      errors['body'] = [HttpStatus.BAD_REQUEST, 'Invalid JSON in request body'];
+      errorStatusCodes['body'] = HttpStatus.BAD_REQUEST;
     }
   }
 
@@ -171,7 +182,7 @@ export function extractEventParams<T = Record<string, unknown>>(
         // Check if parameter is missing
         if (paramValue === undefined || paramValue === null) {
           if (value.required) {
-            const statusCode = value.statusCodeError || 422;
+            const statusCode = value.statusCodeError || HttpStatus.UNPROCESSABLE_ENTITY;
             const errorMessage = value.notFoundError || `${value.label} is required`;
             
             errors[fullKey] = [statusCode, errorMessage];
@@ -190,12 +201,12 @@ export function extractEventParams<T = Record<string, unknown>>(
         // Validate expected type
         if (value.expectedType) {
           const isValid =
-            value.expectedType === 'array'
+            value.expectedType === ParameterType.ARRAY
               ? Array.isArray(paramValue)
               : typeof paramValue === value.expectedType;
 
           if (!isValid) {
-            const statusCode = value.statusCodeError || 422;
+            const statusCode = value.statusCodeError || HttpStatus.UNPROCESSABLE_ENTITY;
             const errorMessage =
               value.wrongTypeMessage || `${value.label} must be of type ${value.expectedType}`;
             
@@ -212,7 +223,7 @@ export function extractEventParams<T = Record<string, unknown>>(
           try {
             finalValue = value.decoder(paramValue);
           } catch (decoderError) {
-            const statusCode = value.statusCodeError || 422;
+            const statusCode = value.statusCodeError || HttpStatus.UNPROCESSABLE_ENTITY;
             const errorMessage = value.wrongTypeMessage || `${value.label} has invalid format`;
             
             errors[fullKey] = [statusCode, errorMessage];

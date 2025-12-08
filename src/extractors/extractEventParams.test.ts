@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { extractEventParams, EventSchema } from './extractEventParams';
-import { Unauthorized, UnprocessableEntity, BadRequest } from '../errors';
+import { extractEventParams, EventSchema, ParameterType } from './extractEventParams';
+import { Unauthorized, UnprocessableEntity, BadRequest, HttpStatus } from '../errors';
 
 const createMockEvent = (overrides: Partial<APIGatewayProxyEvent> = {}): APIGatewayProxyEvent => ({
   body: null,
@@ -56,7 +56,7 @@ describe('extractEventParams', () => {
           id: {
             label: 'User ID',
             required: true,
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
           },
         },
       };
@@ -90,7 +90,7 @@ describe('extractEventParams', () => {
         extractEventParams(schema, event);
       } catch (error) {
         if (error instanceof UnprocessableEntity) {
-          expect(error.data?.errors).toEqual({ 'pathParameters.id': [422, 'ID is required'] });
+          expect(error.data?.errors).toEqual({ 'pathParameters.id': [HttpStatus.UNPROCESSABLE_ENTITY, 'ID is required'] });
         }
       }
     });
@@ -117,7 +117,7 @@ describe('extractEventParams', () => {
           id: {
             label: 'ID',
             required: false,
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
           },
         },
       };
@@ -136,11 +136,11 @@ describe('extractEventParams', () => {
           email: {
             label: 'Email',
             required: true,
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
           },
           age: {
             label: 'Age',
-            expectedType: 'number',
+            expectedType: ParameterType.NUMBER,
           },
         },
       };
@@ -180,12 +180,12 @@ describe('extractEventParams', () => {
         queryStringParameters: {
           page: {
             label: 'Page',
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
             default: '1',
           },
           limit: {
             label: 'Limit',
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
           },
         },
       };
@@ -244,7 +244,7 @@ describe('extractEventParams', () => {
           authorization: {
             label: 'Authorization',
             required: true,
-            statusCodeError: 401,
+            statusCodeError: HttpStatus.UNAUTHORIZED,
             notFoundError: 'Authorization required',
           },
         },
@@ -264,7 +264,7 @@ describe('extractEventParams', () => {
         pathParameters: {
           id: {
             label: 'ID',
-            expectedType: 'string',
+            expectedType: ParameterType.STRING,
             required: true,
           },
         },
@@ -283,7 +283,7 @@ describe('extractEventParams', () => {
         body: {
           age: {
             label: 'Age',
-            expectedType: 'number',
+            expectedType: ParameterType.NUMBER,
             required: true,
           },
         },
@@ -302,7 +302,7 @@ describe('extractEventParams', () => {
         body: {
           tags: {
             label: 'Tags',
-            expectedType: 'array',
+            expectedType: ParameterType.ARRAY,
             required: true,
           },
         },
@@ -321,7 +321,7 @@ describe('extractEventParams', () => {
         body: {
           age: {
             label: 'Age',
-            expectedType: 'number',
+            expectedType: ParameterType.NUMBER,
             required: true,
             wrongTypeMessage: 'Age must be a number',
           },
@@ -415,9 +415,9 @@ describe('extractEventParams', () => {
       } catch (error) {
         if (error instanceof UnprocessableEntity) {
           expect(error.data?.errors).toEqual({
-            'body.email': [422, 'Email is required'],
-            'body.age': [422, 'Age is required'],
-            'body.name': [422, 'Name is required'],
+            'body.email': [HttpStatus.UNPROCESSABLE_ENTITY, 'Email is required'],
+            'body.age': [HttpStatus.UNPROCESSABLE_ENTITY, 'Age is required'],
+            'body.name': [HttpStatus.UNPROCESSABLE_ENTITY, 'Name is required'],
           });
         }
       }
@@ -432,11 +432,11 @@ describe('extractEventParams', () => {
             email: {
               label: 'Email',
               required: true,
-              expectedType: 'string',
+              expectedType: ParameterType.STRING,
             },
             age: {
               label: 'Age',
-              expectedType: 'number',
+              expectedType: ParameterType.NUMBER,
             },
           },
         },
