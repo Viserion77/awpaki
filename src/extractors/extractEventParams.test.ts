@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { extractEventParams, EventSchema } from './extractEventParams';
-import { Unauthorized, UnprocessableEntity } from '../errors';
+import { Unauthorized, UnprocessableEntity, BadRequest } from '../errors';
 
 const createMockEvent = (overrides: Partial<APIGatewayProxyEvent> = {}): APIGatewayProxyEvent => ({
   body: null,
@@ -90,7 +90,7 @@ describe('extractEventParams', () => {
         extractEventParams(schema, event);
       } catch (error) {
         if (error instanceof UnprocessableEntity) {
-          expect(error.errors).toEqual({ 'pathParameters.id': 'ID is required' });
+          expect(error.data?.errors).toEqual({ 'pathParameters.id': [422, 'ID is required'] });
         }
       }
     });
@@ -154,7 +154,7 @@ describe('extractEventParams', () => {
       expect(result.age).toBe(25);
     });
 
-    it('should throw UnprocessableEntity for invalid JSON body', () => {
+    it('should throw BadRequest for invalid JSON body', () => {
       const schema: EventSchema = {
         body: {
           email: {
@@ -170,7 +170,7 @@ describe('extractEventParams', () => {
 
       expect(() => {
         extractEventParams(schema, event);
-      }).toThrow(UnprocessableEntity);
+      }).toThrow(BadRequest);
     });
   });
 
@@ -414,10 +414,10 @@ describe('extractEventParams', () => {
         extractEventParams(schema, event);
       } catch (error) {
         if (error instanceof UnprocessableEntity) {
-          expect(error.errors).toEqual({
-            'body.email': 'Email is required',
-            'body.age': 'Age is required',
-            'body.name': 'Name is required',
+          expect(error.data?.errors).toEqual({
+            'body.email': [422, 'Email is required'],
+            'body.age': [422, 'Age is required'],
+            'body.name': [422, 'Name is required'],
           });
         }
       }

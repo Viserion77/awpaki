@@ -200,36 +200,89 @@ All error classes extend `HttpError` and include:
 - `Unauthorized` (401)
 - `Forbidden` (403)
 - `NotFound` (404)
-- `ConflictError` (409)
-- `PreconditionFailedError` (412)
-- `UnprocessableEntity` (422) - **Supports multiple errors**
-- `TooManyRequestsError` (429)
+- `Conflict` (409)
+- `PreconditionFailed` (412)
+- `UnprocessableEntity` (422)
+- `TooManyRequests` (429)
 - `InternalServerError` (500)
-- `IntegrationError` (502)
-- `ServiceUnavailableError` (503)
+- `NotImplemented` (501)
+- `BadGateway` (502)
+- `ServiceUnavailable` (503)
 
-#### `UnprocessableEntity` - Special Features
+#### HTTP Error Mapping
 
-Supports collecting multiple validation errors:
+Use `createHttpError()` to dynamically create the appropriate error based on status code:
 
 ```typescript
-new UnprocessableEntity('Validation failed', {
-  email: 'Invalid format',
-  age: 'Must be positive',
-  password: 'Too short'
-});
+import { createHttpError, HTTP_ERROR_MAP } from 'awpaki';
+
+// Creates a NotFound error
+const error1 = createHttpError(404, 'User not found', { userId: 123 });
+
+// Creates a BadRequest error
+const error2 = createHttpError(400, 'Invalid input');
+
+// Creates an Unauthorized error
+const error3 = createHttpError(401, 'Token expired');
+
+// Unmapped status codes fallback to NotImplemented (501)
+const error4 = createHttpError(999, 'Unknown error'); // Returns NotImplemented (501)
+const error5 = createHttpError(418, "I'm a teapot"); // Returns NotImplemented (501)
 ```
 
-The `toLambdaResponse()` includes all errors in the response body:
+The `HTTP_ERROR_MAP` object maps status codes to error classes:
 
-```json
+```typescript
 {
-  "message": "Validation failed",
-  "errors": {
-    "email": "Invalid format",
-    "age": "Must be positive",
-    "password": "Too short"
+  400: BadRequest,
+  401: Unauthorized,
+  403: Forbidden,
+  404: NotFound,
+  409: Conflict,
+  412: PreconditionFailed,
+  422: UnprocessableEntity,
+  429: TooManyRequests,
+  500: InternalServerError,
+  501: NotImplemented,
+  502: BadGateway,
+  503: ServiceUnavailable,
+}
+```
+
+**Usage in extractEventParams:**
+
+The `extractEventParams` function uses `createHttpError()` internally, so specifying `statusCodeError` in your schema will automatically throw the correct error type:
+
+```typescript
+const schema = {
+  pathParameters: {
+    id: { 
+      label: 'User ID', 
+      required: true, 
+      statusCodeError: 404  // Will throw NotFound instead of UnprocessableEntity
+    }
+  },
+  headers: {
+    authorization: { 
+      label: 'Authorization', 
+      required: true, 
+      statusCodeError: 401  // Will throw Unauthorized
+    }
+  },
+  body: {
+    email: { 
+      label: 'Email', 
+      required: true, 
+      statusCodeError: 400  // Will throw BadRequest
+    }
   }
+};
+
+try {
+  extractEventParams(schema, event);
+} catch (error) {
+  // error will be NotFound (404), Unauthorized (401), or BadRequest (400)
+  // depending on which validation failed
 }
 ```
 

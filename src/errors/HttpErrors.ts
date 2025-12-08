@@ -121,58 +121,21 @@ export class PreconditionFailed extends HttpError {
 
 /**
  * 422 Unprocessable Entity
- * Used for validation errors with support for multiple error messages
+ * Used for validation errors
  * 
  * @example
  * ```typescript
- * // Single error
  * throw new UnprocessableEntity('Validation failed');
- * 
- * // Multiple errors
- * throw new UnprocessableEntity('Validation failed', {
- *   email: 'Invalid email format',
- *   age: 'Must be 18 or older',
- *   password: 'Must be at least 8 characters'
- * });
+ * throw new UnprocessableEntity('Validation failed', { errors: {...} });
  * ```
  */
 export class UnprocessableEntity extends HttpError {
-  public readonly errors?: Record<string, string>;
-
   constructor(
-    message?: string,
-    errors?: Record<string, string>,
+    message: string = 'Unprocessable Entity',
+    data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    // If errors object is provided, use first error as message
-    const errorMessage = message || (errors ? Object.values(errors)[0] : 'Validation Error');
-    super(errorMessage, 422, errors ? { errors } : undefined, headers);
-    this.errors = errors;
-  }
-
-  /**
-   * Override toLambdaResponse to include errors in response body
-   */
-  public toLambdaResponse(additionalHeaders?: Record<string, string | boolean | number>): import('aws-lambda').APIGatewayProxyResult {
-    const responseBody: any = { message: this.message };
-    
-    if (this.errors) {
-      responseBody.errors = this.errors;
-    }
-    
-    if (this.data && Object.keys(this.data).length > 0 && !this.errors) {
-      responseBody.data = this.data;
-    }
-
-    return {
-      statusCode: this.statusCode,
-      body: JSON.stringify(responseBody),
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.headers,
-        ...additionalHeaders,
-      },
-    };
+    super(message, 422, data, headers);
   }
 }
 
@@ -216,23 +179,41 @@ export class InternalServerError extends HttpError {
 }
 
 /**
+ * 501 Not Implemented
+ * Used when the server does not support the functionality required to fulfill the request
+ * 
+ * @example
+ * ```typescript
+ * throw new NotImplemented('This feature is not yet implemented');
+ * throw new NotImplemented('HTTP method not supported');
+ * ```
+ */
+export class NotImplemented extends HttpError {
+  constructor(
+    message: string = 'Not Implemented',
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>
+  ) {
+    super(message, 501, data, headers);
+  }
+}
+
+/**
  * 502 Bad Gateway
  * Used when an integration/external service fails
  * 
  * @example
  * ```typescript
- * throw new BadGateway('Stripe API', 'Payment processing failed');
- * throw new BadGateway('AWS S3');
+ * throw new BadGateway('Payment processing failed', { integration: 'Stripe API' });
+ * throw new BadGateway('External service unavailable', { integration: 'AWS S3' });
  * ```
  */
 export class BadGateway extends HttpError {
   constructor(
-    integration: string,
-    errorMessage?: string,
+    message: string = 'Bad Gateway',
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    const message = errorMessage ?? `Could not integrate with ${integration}`;
     super(message, 502, data, headers);
   }
 }
@@ -254,5 +235,59 @@ export class ServiceUnavailable extends HttpError {
   ) {
     super(message, 503, data, headers);
   }
+}
+
+/**
+ * Maps HTTP status codes to their corresponding error classes
+ * Used for dynamic error instantiation based on status codes
+ */
+export const HTTP_ERROR_MAP: Record<number, any> = {
+  400: BadRequest,
+  401: Unauthorized,
+  403: Forbidden,
+  404: NotFound,
+  409: Conflict,
+  412: PreconditionFailed,
+  422: UnprocessableEntity,
+  429: TooManyRequests,
+  500: InternalServerError,
+  501: NotImplemented,
+  502: BadGateway,
+  503: ServiceUnavailable,
+};
+
+/**
+ * Creates an HTTP error instance based on status code
+ * Falls back to NotImplemented (501) for unmapped status codes
+ * 
+ * @param statusCode - HTTP status code
+ * @param message - Error message
+ * @param data - Additional error data
+ * @param headers - Response headers
+ * @returns Instance of the appropriate HttpError subclass
+ * 
+ * @example
+ * ```typescript
+ * const error = createHttpError(404, 'User not found');
+ * // Returns: NotFound instance
+ * 
+ * const error = createHttpError(999, 'Custom error');
+ * // Returns: NotImplemented (501) instance
+ * ```
+ */
+export function createHttpError(
+  statusCode: number,
+  message: string,
+  data?: Record<string, any>,
+  headers?: Record<string, string | boolean | number>
+): HttpError {
+  const ErrorClass = HTTP_ERROR_MAP[statusCode];
+  
+  // If status code not mapped, use NotImplemented (501)
+  if (!ErrorClass) {
+    return new NotImplemented(message || 'Not Implemented', data, headers);
+  }
+  
+  return new ErrorClass(message, data, headers);
 }
 

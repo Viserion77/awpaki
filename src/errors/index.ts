@@ -9,6 +9,9 @@ export {
   UnprocessableEntity,
   TooManyRequests,
   InternalServerError,
+  NotImplemented,
   BadGateway,
   ServiceUnavailable,
+  HTTP_ERROR_MAP,
+  createHttpError,
 } from './HttpErrors';

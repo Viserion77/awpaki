@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent } from 'aws-lambda';
-import { Unauthorized, UnprocessableEntity } from '../errors';
+import { createHttpError } from '../errors';
 
 /**
  * Configuration for a single parameter extraction
@@ -40,8 +40,12 @@ export interface EventSchema {
  * @param schema - Schema defining parameters to extract and their validation rules
  * @param event - AWS Lambda event (APIGatewayProxyEvent, SQS, SNS, DynamoDB, S3, or custom)
  * @returns Extracted and validated parameters
- * @throws {UnprocessableEntity} When validation fails (multiple errors collected)
- * @throws {Unauthorized} When a 401 error is configured
+ * @throws {HttpError} Appropriate HTTP error based on statusCodeError configuration
+ *                     - 400: BadRequest
+ *                     - 401: Unauthorized
+ *                     - 404: NotFound
+ *                     - 422: UnprocessableEntity (default)
+ *                     - Falls back to 501 InternalServerError for unmapped codes
  * 
  * @example
  * ```typescript
@@ -112,8 +116,8 @@ export function extractEventParams<T = Record<string, unknown>>(
     | Record<string, unknown>,
 ): T {
   const result: Record<string, unknown> = {};
-  const errors: Record<string, string> = {};
-  let firstErrorStatusCode = 400;
+  const errors: Record<string, [number, string]> = {};
+  const errorStatusCodes: Record<string, number> = {};
 
   /**
    * Recursively gets nested value from object using dot notation
@@ -150,8 +154,8 @@ export function extractEventParams<T = Record<string, unknown>>(
     try {
       eventData.body = JSON.parse(event.body) as unknown;
     } catch (parseError) {
-      errors['body'] = 'Invalid JSON in request body';
-      firstErrorStatusCode = 400;
+      errors['body'] = [400, 'Invalid JSON in request body'];
+      errorStatusCodes['body'] = 400;
     }
   }
 
@@ -167,14 +171,11 @@ export function extractEventParams<T = Record<string, unknown>>(
         // Check if parameter is missing
         if (paramValue === undefined || paramValue === null) {
           if (value.required) {
-            const statusCode = value.statusCodeError || 400;
+            const statusCode = value.statusCodeError || 422;
             const errorMessage = value.notFoundError || `${value.label} is required`;
             
-            if (Object.keys(errors).length === 0) {
-              firstErrorStatusCode = statusCode;
-            }
-            
-            errors[fullKey] = errorMessage;
+            errors[fullKey] = [statusCode, errorMessage];
+            errorStatusCodes[fullKey] = statusCode;
             return;
           }
           
@@ -194,15 +195,12 @@ export function extractEventParams<T = Record<string, unknown>>(
               : typeof paramValue === value.expectedType;
 
           if (!isValid) {
-            const statusCode = value.statusCodeError || 400;
+            const statusCode = value.statusCodeError || 422;
             const errorMessage =
               value.wrongTypeMessage || `${value.label} must be of type ${value.expectedType}`;
             
-            if (Object.keys(errors).length === 0) {
-              firstErrorStatusCode = statusCode;
-            }
-            
-            errors[fullKey] = errorMessage;
+            errors[fullKey] = [statusCode, errorMessage];
+            errorStatusCodes[fullKey] = statusCode;
             return;
           }
         }
@@ -214,14 +212,11 @@ export function extractEventParams<T = Record<string, unknown>>(
           try {
             finalValue = value.decoder(paramValue);
           } catch (decoderError) {
-            const statusCode = value.statusCodeError || 400;
+            const statusCode = value.statusCodeError || 422;
             const errorMessage = value.wrongTypeMessage || `${value.label} has invalid format`;
             
-            if (Object.keys(errors).length === 0) {
-              firstErrorStatusCode = statusCode;
-            }
-            
-            errors[fullKey] = errorMessage;
+            errors[fullKey] = [statusCode, errorMessage];
+            errorStatusCodes[fullKey] = statusCode;
             return;
           }
         }
@@ -240,11 +235,45 @@ export function extractEventParams<T = Record<string, unknown>>(
 
   // If there are validation errors, throw appropriate error
   if (Object.keys(errors).length > 0) {
-    if (firstErrorStatusCode === 401) {
-      throw new Unauthorized(Object.values(errors)[0]);
-    } else {
-      throw new UnprocessableEntity(Object.values(errors)[0], errors);
+    const errorCount = Object.keys(errors).length;
+    const statusCodes = Object.values(errorStatusCodes);
+    const uniqueStatusCodes = [...new Set(statusCodes)];
+    
+    // Single error - use its status code and message
+    if (errorCount === 1) {
+      const statusCode = statusCodes[0];
+      const [, errorMessage] = Object.values(errors)[0];
+      
+      throw createHttpError(statusCode, errorMessage, { errors });
     }
+    
+    // Multiple errors - use highest status code
+    const highestStatusCode = Math.max(...statusCodes);
+    
+    // Check if all errors have the same status code
+    if (uniqueStatusCodes.length === 1) {
+      const statusCode = uniqueStatusCodes[0];
+      const message = `Multiple validation errors (${errorCount} errors, status ${statusCode})`;
+      
+      throw createHttpError(statusCode, message, { errors });
+    }
+    
+    // Multiple different status codes - group by status
+    const errorsByStatus: Record<number, string[]> = {};
+    Object.entries(errorStatusCodes).forEach(([key, statusCode]) => {
+      if (!errorsByStatus[statusCode]) {
+        errorsByStatus[statusCode] = [];
+      }
+      errorsByStatus[statusCode].push(`${key}: ${errors[key][1]}`);
+    });
+    
+    const statusSummary = Object.entries(errorsByStatus)
+      .map(([code, errs]) => `${errs.length}×${code}`)
+      .join(', ');
+    
+    const message = `Multiple validation errors (${statusSummary})`;
+    
+    throw createHttpError(highestStatusCode, message, { errors });
   }
 
   return result as T;

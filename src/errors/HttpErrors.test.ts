@@ -9,6 +9,7 @@ import {
   UnprocessableEntity,
   TooManyRequests,
   InternalServerError,
+  NotImplemented,
   BadGateway,
   ServiceUnavailable,
 } from './index';
@@ -142,36 +143,28 @@ describe('HttpError', () => {
   describe('UnprocessableEntity', () => {
     it('should create 422 error', () => {
       const errors = { email: 'Invalid format', age: 'Must be positive' };
-      const error = new UnprocessableEntity('Validation failed', errors);
+      const error = new UnprocessableEntity('Validation failed', { errors });
       
       expect(error.statusCode).toBe(422);
       expect(error.message).toBe('Validation failed');
-      expect(error.errors).toEqual(errors);
+      expect(error.data?.errors).toEqual(errors);
     });
 
-    it('should use first error as message when message not provided', () => {
-      const errors = { email: 'Invalid format', age: 'Must be positive' };
-      const error = new UnprocessableEntity(undefined, errors);
-      
-      expect(error.message).toBe('Invalid format');
-      expect(error.errors).toEqual(errors);
-    });
-
-    it('should use default message when no message or errors', () => {
+    it('should use default message when no message provided', () => {
       const error = new UnprocessableEntity();
       
-      expect(error.message).toBe('Validation Error');
-      expect(error.errors).toBeUndefined();
+      expect(error.message).toBe('Unprocessable Entity');
+      expect(error.data).toBeUndefined();
     });
 
     it('should include errors in Lambda response', () => {
       const errors = { email: 'Invalid format', age: 'Must be positive' };
-      const error = new UnprocessableEntity('Validation failed', errors);
+      const error = new UnprocessableEntity('Validation failed', { errors });
       const response = error.toLambdaResponse();
       
       const body = JSON.parse(response.body);
       expect(body.message).toBe('Validation failed');
-      expect(body.errors).toEqual(errors);
+      expect(body.data.errors).toEqual(errors);
     });
 
     it('should work with single error', () => {
@@ -180,7 +173,7 @@ describe('HttpError', () => {
       
       const body = JSON.parse(response.body);
       expect(body.message).toBe('Single validation error');
-      expect(body.errors).toBeUndefined();
+      expect(body.data).toBeUndefined();
     });
   });
 
@@ -208,18 +201,35 @@ describe('HttpError', () => {
     });
   });
 
-  describe('BadGateway', () => {
-    it('should create 502 error with integration name', () => {
-      const error = new BadGateway('Stripe API');
+  describe('NotImplemented', () => {
+    it('should create 501 error', () => {
+      const error = new NotImplemented('Feature not available');
       
-      expect(error.statusCode).toBe(502);
-      expect(error.message).toBe('Could not integrate with Stripe API');
+      expect(error.statusCode).toBe(501);
+      expect(error.message).toBe('Feature not available');
     });
 
-    it('should use custom error message', () => {
-      const error = new BadGateway('AWS S3', 'Upload failed');
+    it('should use default message', () => {
+      const error = new NotImplemented();
       
-      expect(error.message).toBe('Upload failed');
+      expect(error.message).toBe('Not Implemented');
+    });
+  });
+
+  describe('BadGateway', () => {
+    it('should create 502 error', () => {
+      const error = new BadGateway('Payment service unavailable', { integration: 'Stripe API' });
+      
+      expect(error.statusCode).toBe(502);
+      expect(error.message).toBe('Payment service unavailable');
+      expect(error.data).toEqual({ integration: 'Stripe API' });
+    });
+
+    it('should use default message', () => {
+      const error = new BadGateway();
+      
+      expect(error.statusCode).toBe(502);
+      expect(error.message).toBe('Bad Gateway');
     });
   });
 
