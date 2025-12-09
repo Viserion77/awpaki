@@ -115,6 +115,31 @@ import * as parsers from 'awpaki/parsers';
 - Follow existing naming conventions
 - Keep functions pure and focused on single responsibilities
 - **Avoid `forEach`**: Use `for...of` or `map/filter/reduce` instead. The `forEach` method increases cognitive load and makes code harder to reason about
+- **Prefer function declarations over arrow functions**: Use `function functionName() {}` instead of `const functionName = () => {}`. Regular function declarations appear in stack traces with their names, making debugging easier. Arrow functions show as anonymous in stack traces, making production errors harder to diagnose.
+
+**Function Declaration Examples:**
+
+```typescript
+// ✅ Good: Named function (appears in stack trace)
+export function parseJsonBody<T>(body: string): T {
+  // Implementation
+}
+
+// ✅ Good: Named function with type parameters
+export function extractEventParams<T>(schema: EventSchema, event: APIGatewayProxyEvent): T {
+  // Implementation
+}
+
+// ❌ Avoid: Arrow function (anonymous in stack trace)
+export const parseJsonBody = <T>(body: string): T => {
+  // Shows as "anonymous" or "<anonymous>" in stack traces
+};
+```
+
+**Exception**: Arrow functions are acceptable for:
+- Inline callbacks: `.map(x => x * 2)`
+- React components (convention)
+- Single-line utilities where stack trace is not critical
 
 ## Type Safety Rules
 

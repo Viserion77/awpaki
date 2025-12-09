@@ -50,109 +50,488 @@ import { parseJsonBody } from 'awpaki/parsers';
 import * as parsers from 'awpaki/parsers';
 ```
 
+### AWS Lambda Handler Types
+
+AWS provides official TypeScript types for all Lambda handlers via `@types/aws-lambda`. Use these types instead of manually typing events and return values:
+
+```typescript
+import { 
+  // API Gateway
+  APIGatewayProxyHandler,           // event: APIGatewayProxyEvent → APIGatewayProxyResult
+  APIGatewayProxyHandlerV2,         // HTTP API (v2)
+  
+  // SQS
+  SQSHandler,                        // event: SQSEvent → SQSBatchResponse | void
+  
+  // SNS  
+  SNSHandler,                        // event: SNSEvent → void
+  
+  // DynamoDB Streams
+  DynamoDBStreamHandler,             // event: DynamoDBStreamEvent → DynamoDBBatchResponse | void
+  
+  // S3
+  S3Handler,                         // event: S3Event → void
+  S3BatchHandler,                    // S3 Batch Operations
+  
+  // EventBridge
+  EventBridgeHandler,                // Generic EventBridge handler
+  ScheduledHandler,                  // CloudWatch Events/cron
+  
+  // Others
+  ALBHandler,                        // Application Load Balancer
+  CloudFrontRequestHandler,          // CloudFront
+  // ... many more available
+} from 'aws-lambda';
+
+// Usage example
+export const myHandler: SQSHandler = async (event, context) => {
+  // event is typed as SQSEvent
+  // context is typed as Context
+  // return type is SQSBatchResponse | void
+};
+```
+
+**Benefits:**
+- ✅ Automatic type inference for event and context
+- ✅ Type-safe return values
+- ✅ No need to manually import event types
+- ✅ Better IDE autocomplete and error checking
+
+**Quick Reference:**
+
+| Handler Type | Event Type | Return Type | Use Case |
+|---|---|---|---|
+| `APIGatewayProxyHandler` | `APIGatewayProxyEvent` | `APIGatewayProxyResult` | REST API |
+| `APIGatewayProxyHandlerV2` | `APIGatewayProxyEventV2` | `APIGatewayProxyResultV2` | HTTP API (v2) |
+| `SQSHandler` | `SQSEvent` | `SQSBatchResponse \| void` | Message queues |
+| `SNSHandler` | `SNSEvent` | `void` | Pub/sub notifications |
+| `DynamoDBStreamHandler` | `DynamoDBStreamEvent` | `DynamoDBBatchResponse \| void` | Database streams |
+| `S3Handler` | `S3Event` | `void` | Object storage events |
+| `EventBridgeHandler<T, D, R>` | `EventBridgeEvent<T, D>` | `R` | Custom events |
+| `ScheduledHandler<T>` | `ScheduledEvent<T>` | `void` | Cron/scheduled |
+| `ALBHandler` | `ALBEvent` | `ALBResult` | Load balancer |
+
+**Response Types:**
+
+```typescript
+// API Gateway - Must return proper structure
+APIGatewayProxyResult: {
+  statusCode: number;
+  headers?: { [key: string]: string };
+  body: string;  // Must be JSON stringified
+}
+
+// SQS - Optional batch failure reporting
+SQSBatchResponse: {
+  batchItemFailures: Array<{ itemIdentifier: string }>;
+}
+
+// DynamoDB - Optional batch failure reporting  
+DynamoDBBatchResponse: {
+  batchItemFailures: Array<{ itemIdentifier: string }>;
+}
+
+// SNS, S3, EventBridge - No return value (void)
+```
+
 ## Quick Start Examples
 
 ### Complete Lambda Handler Example
 
+This example demonstrates all the key patterns from the library:
+
 ```typescript
 import { 
+  // Logging
   logApiGatewayEvent,
+  
+  // Parameter extraction & validation
   extractEventParams, 
-  parseJsonBody,
+  ParameterType,
+  
+  // Error handling
+  handleApiGatewayError,
   NotFound,
-  UnprocessableEntity,
   HttpStatus,
-  ParameterType
+  
+  // Type safety
+  HttpError
 } from 'awpaki';
-import { APIGatewayProxyEvent, Context } from 'aws-lambda';
+import { APIGatewayProxyHandler } from 'aws-lambda';
 
-export const handler = async (event: APIGatewayProxyEvent, context: Context) => {
-  // 1. Log event for tracking/debugging
+/**
+ * Example: Update user profile
+ * GET /users/{userId}
+ * PUT /users/{userId}
+ */
+export const handler: APIGatewayProxyHandler = async (event, context) => {
+  // 1️⃣ Log incoming event for debugging
+  // AWS will filter logs based on Lambda configuration (info/debug)
   logApiGatewayEvent(event, context);
   
   try {
-    // 2. Extract and validate parameters
+    // 2️⃣ Extract and validate all parameters with type safety
     const params = extractEventParams({
+      // Path parameters (from URL)
       pathParameters: {
         userId: {
           label: 'User ID',
           required: true,
           expectedType: ParameterType.STRING,
-          statusCodeError: HttpStatus.NOT_FOUND
-        }
+          statusCodeError: HttpStatus.NOT_FOUND, // 404 if missing
+        },
       },
+      
+      // Headers (authentication, content-type, etc)
       headers: {
         authorization: {
           label: 'Authorization',
           required: true,
-          statusCodeError: HttpStatus.UNAUTHORIZED
-        }
+          caseInsensitive: true, // Matches Authorization, authorization, AUTHORIZATION
+          statusCodeError: HttpStatus.UNAUTHORIZED, // 401 if missing
+        },
+        'content-type': {
+          label: 'Content-Type',
+          default: 'application/json',
+        },
       },
+      
+      // Request body (for POST/PUT/PATCH)
       body: {
+        name: {
+          label: 'Name',
+          required: true,
+          expectedType: ParameterType.STRING,
+        },
         email: {
           label: 'Email',
           required: true,
-          expectedType: ParameterType.STRING
+          expectedType: ParameterType.STRING,
+          decoder: (value: string) => {
+            // Custom validation/transformation
+            if (!value.includes('@')) {
+              throw new Error('Invalid email format');
+            }
+            return value.toLowerCase();
+          },
         },
         age: {
           label: 'Age',
           expectedType: ParameterType.NUMBER,
-          default: 18
-        }
-      }
+          default: 18, // Optional with default
+        },
+        tags: {
+          label: 'Tags',
+          expectedType: ParameterType.ARRAY,
+          default: [],
+        },
+      },
+      
+      // Query string parameters
+      queryStringParameters: {
+        includeDetails: {
+          label: 'Include Details',
+          expectedType: ParameterType.BOOLEAN,
+          default: false,
+        },
+      },
     }, event);
     
-    // 3. Process business logic
-    const user = await updateUser(params.userId, {
-      email: params.email,
-      age: params.age
+    // 3️⃣ Business logic with validated parameters
+    // All params are now type-safe and validated
+    const token = params.authorization.replace('Bearer ', '');
+    
+    // Simulate database lookup
+    const existingUser = await getUserById(params.userId);
+    if (!existingUser) {
+      // Throw type-safe HTTP errors
+      throw new NotFound(`User ${params.userId} not found`);
+    }
+    
+    // Update user
+    const updatedUser = await updateUser(params.userId, {
+      name: params.name,
+      email: params.email, // Already normalized by decoder
+      age: params.age,
+      tags: params.tags,
     });
     
-    // 4. Return success response
+    // 4️⃣ Return success response
     return {
-      statusCode: 200,
-      body: JSON.stringify(user)
+      statusCode: HttpStatus.OK, // Type-safe status code
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        success: true,
+        data: params.includeDetails 
+          ? { ...updatedUser, metadata: { updatedAt: new Date().toISOString() } }
+          : updatedUser,
+      }),
     };
     
   } catch (error) {
-    // 5. Handle errors with proper HTTP responses
-    if (error instanceof UnprocessableEntity || error instanceof NotFound) {
-      return error.toLambdaResponse();
+    // 5️⃣ Centralized error handling
+    // Converts HttpError to proper API Gateway response
+    // Re-throws non-HTTP errors for Lambda retry/DLQ
+    return handleApiGatewayError(error);
+    
+    // Returns proper format:
+    // {
+    //   statusCode: 404,
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     message: 'User 123 not found',
+    //     $x-custom-metadata: {
+    //       logStreamName: '2024/12/08/[$LATEST]abc123',
+    //       functionName: 'my-api-handler'
+    //     }
+    //   })
+    // }
+  }
+};
+
+// Mock functions (replace with your actual implementation)
+async function getUserById(userId: string) {
+  // Your database logic
+  return { id: userId, name: 'John Doe' };
+}
+
+async function updateUser(userId: string, data: any) {
+  // Your database logic
+  return { id: userId, ...data };
+}
+```
+
+### SQS Handler Example
+
+For non-API Gateway triggers, use generic error handlers. SQS supports partial batch failures:
+
+```typescript
+import { 
+  logSqsEvent,
+  handleSqsError, // Alias for handleGenericError
+  BadRequest 
+} from 'awpaki';
+import { SQSHandler } from 'aws-lambda';
+
+export const sqsHandler: SQSHandler = async (event, context) => {
+  // Log SQS event with record details
+  logSqsEvent(event, context);
+  
+  try {
+    for (const record of event.Records) {
+      const body = JSON.parse(record.body);
+      
+      if (!body.userId) {
+        throw new BadRequest('userId is required');
+      }
+      
+      await processOrder(body);
     }
     
-    throw error;
+    // Success - no return needed (void)
+    return;
+    
+  } catch (error) {
+    // Returns generic response or re-throws for retry
+    return handleSqsError(error);
+  }
+};
+
+// With partial batch failure reporting
+export const sqsHandlerWithBatchFailure: SQSHandler = async (event, context) => {
+  logSqsEvent(event, context);
+  
+  const batchItemFailures: { itemIdentifier: string }[] = [];
+  
+  for (const record of event.Records) {
+    try {
+      const body = JSON.parse(record.body);
+      await processOrder(body);
+    } catch (error) {
+      console.error('Failed to process record:', record.messageId, error);
+      // Report failed items for retry
+      batchItemFailures.push({ itemIdentifier: record.messageId });
+    }
+  }
+  
+  // Return batch failures (type-safe: SQSBatchResponse)
+  return { batchItemFailures };
+};
+```
+
+### DynamoDB Stream Handler Example
+
+DynamoDB Streams support partial batch failures for retry:
+
+```typescript
+import { 
+  logDynamoDBStreamEvent,
+  handleDynamoDBStreamError,
+  InternalServerError 
+} from 'awpaki';
+import { DynamoDBStreamHandler } from 'aws-lambda';
+
+export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
+  // Log stream event with keys and image details
+  logDynamoDBStreamEvent(event, context);
+  
+  const batchItemFailures: { itemIdentifier: string }[] = [];
+  
+  for (const record of event.Records) {
+    try {
+      if (record.eventName === 'INSERT') {
+        const newItem = record.dynamodb?.NewImage;
+        await syncToElasticsearch(newItem);
+      }
+      
+      if (record.eventName === 'MODIFY') {
+        const oldItem = record.dynamodb?.OldImage;
+        const newItem = record.dynamodb?.NewImage;
+        await updateSearchIndex(oldItem, newItem);
+      }
+      
+      if (record.eventName === 'REMOVE') {
+        const keys = record.dynamodb?.Keys;
+        await deleteFromSearchIndex(keys);
+      }
+    } catch (error) {
+      console.error('Failed to process record:', record.eventID, error);
+      // Report failed items for retry (type-safe: DynamoDBBatchResponse)
+      batchItemFailures.push({ itemIdentifier: record.dynamodb?.SequenceNumber || '' });
+    }
+  }
+  
+  // Return batch failures for retry
+  return { batchItemFailures };
+};
+```
+
+### SNS Handler Example
+
+SNS handlers typically don't return values (void):
+
+```typescript
+import { 
+  logSnsEvent,
+  handleSnsError,
+  BadRequest 
+} from 'awpaki';
+import { SNSHandler } from 'aws-lambda';
+
+export const snsHandler: SNSHandler = async (event, context) => {
+  // Log SNS event
+  logSnsEvent(event, context);
+  
+  try {
+    for (const record of event.Records) {
+      const message = JSON.parse(record.Sns.Message);
+      
+      // Process notification
+      await sendEmail({
+        to: message.email,
+        subject: record.Sns.Subject,
+        body: message.body,
+      });
+    }
+    
+    // No return needed (void)
+    
+  } catch (error) {
+    return handleSnsError(error);
   }
 };
 ```
 
 ### Lambda Event Logging
 
-Log Lambda events for tracking and debugging in production. Supports API Gateway, SQS, SNS, and EventBridge events.
+AWS-native logging for all Lambda trigger types. Emits structured logs at appropriate levels:
+
+- **console.info()** - Event summaries and metadata (always relevant)
+- **console.debug()** - Full payloads and detailed data (verbose mode only)
+
+AWS Lambda automatically filters logs based on your configuration. No environment variables needed in your code.
 
 ```typescript
-import { logApiGatewayEvent, logSqsEvent, logSnsEvent, logEventBridgeEvent } from 'awpaki';
-import { APIGatewayProxyEvent, SQSEvent, Context } from 'aws-lambda';
+import { 
+  logApiGatewayEvent, 
+  logSqsEvent, 
+  logSnsEvent, 
+  logEventBridgeEvent,
+  logS3Event,
+  logDynamoDBStreamEvent 
+} from 'awpaki';
+import { 
+  APIGatewayProxyHandler,
+  SQSHandler,
+  SNSHandler,
+  EventBridgeHandler,
+  S3Handler,
+  DynamoDBStreamHandler
+} from 'aws-lambda';
 
-// API Gateway events
-export const apiHandler = async (event: APIGatewayProxyEvent, context: Context) => {
+// API Gateway - Logs request metadata + headers (debug)
+export const apiHandler: APIGatewayProxyHandler = async (event, context) => {
   logApiGatewayEvent(event, context);
-  // Logs: [API Gateway Request] { httpMethod, path, sourceIp, ... }
-  
-  // ... your handler logic
+  // Info: { httpMethod, path, stage, sourceIp, requestId }
+  // Debug: Full headers object
 };
 
-// SQS events
-export const sqsHandler = async (event: SQSEvent, context: Context) => {
+// SQS - Logs record count + truncated body (info), full body (debug)
+export const sqsHandler: SQSHandler = async (event, context) => {
   logSqsEvent(event, context);
-  // Logs: [SQS Event] { recordCount, messageIds, ... }
-  
-  // ... your handler logic
+  // Info: { recordCount, messageIds, body: '...first 100 chars...' }
+  // Debug: { body: 'full message', receiptHandle }
 };
 
-// Control via environment variable
-// Set LOG_LEVEL=debug for full details
-// Set LOG_LEVEL=info for standard logging (default)
-// Set LOG_LEVEL=none to disable logging
+// SNS - Logs topic + truncated message (info), full message (debug)
+export const snsHandler: SNSHandler = async (event, context) => {
+  logSnsEvent(event, context);
+  // Info: { topicArn, subject, message: '...first 100 chars...' }
+  // Debug: { message: 'full message content' }
+};
+
+// EventBridge - Logs event metadata + detail keys (info), full detail (debug)
+export const eventBridgeHandler: EventBridgeHandler<string, any, void> = async (event, context) => {
+  logEventBridgeEvent(event, context);
+  // Info: { source, detailType, detailKeys: 'key1, key2, key3' }
+  // Debug: { detail: { full detail object } }
+};
+
+// S3 - Logs object metadata (info only, simple enough)
+export const s3Handler: S3Handler = async (event, context) => {
+  logS3Event(event, context);
+  // Info: { bucketName, objectKey, objectSize, eventName }
+};
+
+// DynamoDB - Logs keys as strings (info), full objects (debug)
+export const dynamoHandler: DynamoDBStreamHandler = async (event, context) => {
+  logDynamoDBStreamEvent(event, context);
+  // Info: { eventName, keys: 'id, email', newImageKeys: 'id, name, email' }
+  // Debug: { Keys: { full object }, NewImage: { full object } }
+}
+
+// Add custom metadata to any logger
+logApiGatewayEvent(event, context, {
+  additionalData: {
+    customField: 'customValue',
+    correlationId: event.headers['x-correlation-id'],
+  },
+});
+```
+
+**CloudWatch Configuration:**
+
+Configure log filtering in your Lambda/CloudWatch, not in code:
+
+```yaml
+# serverless.yml or SAM template
+functions:
+  myFunction:
+    environment:
+      # AWS uses this for log filtering (not read by awpaki)
+      AWS_LAMBDA_LOG_LEVEL: DEBUG  # or INFO (default)
 ```
 
 ### parseJsonBody
