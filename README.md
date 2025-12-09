@@ -19,13 +19,14 @@ npm install awpaki
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest (129 tests passing)
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (188 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
-- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers, loggers)
+- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers, loggers, decoders)
 - 📚 **Flexible Imports**: Import from root or specific categories
 - 🔒 **Type Safety**: Enums for HTTP status codes and parameter types
 - 📊 **Lambda Logging**: Built-in event logging for production tracking
+- ✅ **Validation Decoders**: 17 battle-tested decoders for common validation patterns
 
 ## Usage
 
@@ -36,6 +37,7 @@ The library is organized into categories for better organization:
 - **extractors/**: Parameter and data extraction utilities
 - **validators/**: Input validation functions
 - **transformers/**: Data transformation utilities
+- **decoders/**: Validation and transformation decoders for extractEventParams
 
 ### Import Options
 
@@ -644,6 +646,139 @@ try {
     // Returns proper API Gateway response with status code
   }
 }
+```
+
+### Decoders
+
+Decoders are validation and transformation functions that work with `extractEventParams` to ensure parameter quality. They validate inputs and transform them into the expected format:
+
+```typescript
+import { 
+  extractEventParams,
+  ParameterType,
+  validEmail,
+  trimmedString,
+  positiveInteger,
+  createEnum,
+  stringToBoolean,
+  optionalTrimmedString
+} from 'awpaki';
+import { APIGatewayProxyHandler } from 'aws-lambda';
+
+export const handler: APIGatewayProxyHandler = async (event) => {
+  const params = extractEventParams({
+    body: {
+      email: {
+        label: 'Email',
+        required: true,
+        expectedType: ParameterType.STRING,
+        decoder: validEmail, // Validates format and normalizes to lowercase
+      },
+      name: {
+        label: 'Name', 
+        required: true,
+        expectedType: ParameterType.STRING,
+        decoder: trimmedString, // Removes whitespace and validates non-empty
+      },
+      age: {
+        label: 'Age',
+        required: true,
+        expectedType: ParameterType.NUMBER,
+        decoder: positiveInteger, // Ensures positive integer
+      },
+      status: {
+        label: 'Status',
+        required: true,
+        expectedType: ParameterType.STRING,
+        decoder: createEnum(['active', 'inactive', 'pending']), // Only allows specific values
+      },
+      receiveNewsletter: {
+        label: 'Receive Newsletter',
+        expectedType: ParameterType.BOOLEAN,
+        default: false,
+        decoder: stringToBoolean, // Converts "true"/"false"/"1"/"0"/"yes"/"no" to boolean
+      },
+      bio: {
+        label: 'Bio',
+        expectedType: ParameterType.STRING,
+        default: '',
+        decoder: optionalTrimmedString('No bio provided'), // Returns default for non-string
+      },
+    },
+  }, event);
+  
+  // params.email is now validated and lowercase
+  // params.name is trimmed with no extra spaces
+  // params.age is a positive integer
+  // params.status is one of: 'active', 'inactive', 'pending'
+  // params.receiveNewsletter is true/false boolean
+  // params.bio is trimmed string or default value
+};
+```
+
+**Available Decoders:**
+
+**String Decoders:**
+- `trimmedString(value)` - Removes whitespace, validates non-empty
+- `trimmedLowerString(value)` - Trims and converts to lowercase
+- `alphanumericId(value)` - Validates alphanumeric with hyphens/underscores, converts to lowercase
+- `validEmail(value)` - Validates email format, converts to lowercase
+
+**Number Decoders:**
+- `positiveInteger(value)` - Converts to integer, validates > 0
+- `limitedInteger(min?, max?)(value)` - Validates integer within range (default 1-1000)
+
+**JSON Decoders:**
+- `urlEncodedJson(value)` - Decodes URL-encoded JSON string
+- `jsonString(value)` - Parses JSON string
+
+**Enum Decoder:**
+- `createEnum(validValues)(value)` - Validates value is in allowed list, normalizes to lowercase
+
+**Array Decoder:**
+- `stringArray(value)` - Filters array to non-empty strings
+
+**Boolean Decoder:**
+- `stringToBoolean(value)` - Converts "true"/"false"/"1"/"0"/"yes"/"no"/"on"/"off" to boolean
+
+**Date Decoder:**
+- `isoDateString(value)` - Validates ISO date format, normalizes to ISO string
+
+**Optional Decoders:**
+- `optionalTrimmedString(defaultValue?)(value)` - Returns trimmed string or default (default: '')
+- `optionalInteger(defaultValue?)(value)` - Returns integer or default (default: 0)
+
+**Examples:**
+
+```typescript
+// Email validation and normalization
+decoder: validEmail
+// Input: "USER@EXAMPLE.COM" → Output: "user@example.com"
+
+// Trim and validate non-empty
+decoder: trimmedString
+// Input: "  hello  " → Output: "hello"
+
+// Integer range validation
+decoder: limitedInteger(1, 100)
+// Input: "50" → Output: 50
+// Input: "150" → throws "Must be a number between 1 and 100"
+
+// Enum validation
+decoder: createEnum(['admin', 'user', 'guest'])
+// Input: "ADMIN" → Output: "admin"
+// Input: "invalid" → throws "Must be one of: admin, user, guest"
+
+// Boolean conversion
+decoder: stringToBoolean
+// Input: "yes" → Output: true
+// Input: "0" → Output: false
+// Input: "maybe" → throws error
+
+// Optional with default
+decoder: optionalTrimmedString('N/A')
+// Input: null → Output: "N/A"
+// Input: "  text  " → Output: "text"
 ```
 
 ## API Reference
