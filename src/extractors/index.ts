@@ -1,2 +1,6 @@
 export { extractEventParams, ParameterType } from './extractEventParams';
-export type { ParameterConfig, EventSchema } from './extractEventParams';
+export type { 
+  ParameterConfig, 
+  EventSchema,
+  SchemaValue,
+} from './extractEventParams';

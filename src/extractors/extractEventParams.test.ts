@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent } from 'aws-lambda';
+import { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
 import { extractEventParams, EventSchema, ParameterType } from './extractEventParams';
 import { Unauthorized, UnprocessableEntity, BadRequest, HttpStatus } from '../errors';
 
@@ -490,6 +490,299 @@ describe('extractEventParams', () => {
       expect(result.id).toBe('123');
       expect(result.include).toBe('posts');
       expect(result.name).toBe('John');
+    });
+  });
+
+  describe('AppSync event extraction', () => {
+    const createMockAppSyncEvent = <TArgs = Record<string, any>>(
+      overrides: Partial<AppSyncResolverEvent<TArgs>> = {}
+    ): AppSyncResolverEvent<TArgs> => ({
+      arguments: {} as TArgs,
+      identity: null,
+      source: null,
+      request: {
+        headers: {},
+        domainName: null,
+      },
+      info: {
+        fieldName: 'getUser',
+        parentTypeName: 'Query',
+        selectionSetList: [],
+        selectionSetGraphQL: '',
+        variables: {},
+      },
+      prev: null,
+      stash: {},
+      ...overrides,
+    });
+
+    it('should extract arguments from AppSync event', () => {
+      const schema: EventSchema = {
+        arguments: {
+          id: {
+            label: 'User ID',
+            required: true,
+            expectedType: ParameterType.STRING,
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        arguments: { id: 'user-123' },
+      });
+
+      const result = extractEventParams<{ id: string }>(schema, event);
+      expect(result.id).toBe('user-123');
+    });
+
+    it('should extract identity.sub from AppSync event', () => {
+      const schema: EventSchema = {
+        identity: {
+          sub: {
+            label: 'User Sub',
+            required: true,
+            expectedType: ParameterType.STRING,
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: {
+          sub: 'cognito-user-123',
+          issuer: 'https://cognito-idp.us-east-1.amazonaws.com/pool',
+          username: 'testuser',
+          claims: {},
+          sourceIp: ['127.0.0.1'],
+          defaultAuthStrategy: 'ALLOW',
+        } as any,
+      });
+
+      const result = extractEventParams<{ sub: string }>(schema, event);
+      expect(result.sub).toBe('cognito-user-123');
+    });
+
+    it('should extract nested identity.claims from AppSync event', () => {
+      const schema: EventSchema = {
+        identity: {
+          sub: {
+            label: 'User Sub',
+            required: true,
+          },
+          claims: {
+            email: {
+              label: 'Email from claims',
+              required: true,
+              expectedType: ParameterType.STRING,
+            },
+            'custom:role': {
+              label: 'Custom Role',
+              required: false,
+              default: 'user',
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: {
+          sub: 'cognito-user-123',
+          issuer: 'https://cognito-idp.us-east-1.amazonaws.com/pool',
+          username: 'testuser',
+          claims: {
+            email: 'user@example.com',
+          },
+          sourceIp: ['127.0.0.1'],
+          defaultAuthStrategy: 'ALLOW',
+        } as any,
+      });
+
+      const result = extractEventParams<{ 
+        sub: string; 
+        email: string; 
+        'custom:role': string;
+      }>(schema, event);
+      
+      expect(result.sub).toBe('cognito-user-123');
+      expect(result.email).toBe('user@example.com');
+      expect(result['custom:role']).toBe('user');
+    });
+
+    it('should throw error when required identity field is missing', () => {
+      const schema: EventSchema = {
+        identity: {
+          sub: {
+            label: 'User Sub',
+            required: true,
+            statusCodeError: HttpStatus.UNAUTHORIZED,
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: null,
+      });
+
+      expect(() => {
+        extractEventParams(schema, event);
+      }).toThrow(Unauthorized);
+    });
+
+    it('should throw error when required claim is missing', () => {
+      const schema: EventSchema = {
+        identity: {
+          claims: {
+            email: {
+              label: 'Email',
+              required: true,
+              statusCodeError: HttpStatus.UNAUTHORIZED,
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: {
+          sub: 'user-123',
+          claims: {},
+        } as any,
+      });
+
+      expect(() => {
+        extractEventParams(schema, event);
+      }).toThrow(Unauthorized);
+    });
+
+    it('should extract source from AppSync field resolver', () => {
+      const schema: EventSchema = {
+        source: {
+          authorId: {
+            label: 'Author ID',
+            required: true,
+            expectedType: ParameterType.STRING,
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        source: { id: 'post-123', title: 'Test Post', authorId: 'author-456' } as any,
+      });
+
+      const result = extractEventParams<{ authorId: string }>(schema, event);
+      expect(result.authorId).toBe('author-456');
+    });
+
+    it('should combine arguments and identity extraction', () => {
+      const schema: EventSchema = {
+        arguments: {
+          id: {
+            label: 'User ID',
+            required: true,
+          },
+        },
+        identity: {
+          sub: {
+            label: 'Caller Sub',
+            required: true,
+          },
+          claims: {
+            email: {
+              label: 'Caller Email',
+              required: true,
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        arguments: { id: 'target-user-123' },
+        identity: {
+          sub: 'caller-456',
+          claims: { email: 'caller@example.com' },
+        } as any,
+      });
+
+      const result = extractEventParams<{
+        id: string;
+        sub: string;
+        email: string;
+      }>(schema, event);
+
+      expect(result.id).toBe('target-user-123');
+      expect(result.sub).toBe('caller-456');
+      expect(result.email).toBe('caller@example.com');
+    });
+
+    it('should apply decoder to identity claims', () => {
+      const schema: EventSchema = {
+        identity: {
+          claims: {
+            email: {
+              label: 'Email',
+              required: true,
+              decoder: (value) => (value as string).toLowerCase(),
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: {
+          sub: 'user-123',
+          claims: { email: 'USER@EXAMPLE.COM' },
+        } as any,
+      });
+
+      const result = extractEventParams<{ email: string }>(schema, event);
+      expect(result.email).toBe('user@example.com');
+    });
+
+    it('should validate type in identity claims', () => {
+      const schema: EventSchema = {
+        identity: {
+          claims: {
+            age: {
+              label: 'Age',
+              required: true,
+              expectedType: ParameterType.NUMBER,
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        identity: {
+          sub: 'user-123',
+          claims: { age: 'not-a-number' },
+        } as any,
+      });
+
+      expect(() => {
+        extractEventParams(schema, event);
+      }).toThrow(UnprocessableEntity);
+    });
+
+    it('should extract request headers', () => {
+      const schema: EventSchema = {
+        request: {
+          headers: {
+            authorization: {
+              label: 'Authorization',
+              required: true,
+              caseInsensitive: true,
+            },
+          },
+        },
+      };
+
+      const event = createMockAppSyncEvent({
+        request: {
+          headers: { Authorization: 'Bearer token123' },
+          domainName: null,
+        },
+      });
+
+      const result = extractEventParams<{ authorization: string }>(schema, event);
+      expect(result.authorization).toBe('Bearer token123');
     });
   });
 });

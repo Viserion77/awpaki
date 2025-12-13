@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent } from 'aws-lambda';
+import { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
 import { createHttpError, HttpStatus } from '../errors';
 
 /**
@@ -37,11 +37,17 @@ export interface ParameterConfig {
 }
 
 /**
+ * Recursive type for schema values - allows ParameterConfig or nested schemas
+ */
+export type SchemaValue = ParameterConfig | { [key: string]: SchemaValue };
+
+/**
  * Schema definition for event parameter extraction
  * Supports nested paths like: { body: { user: { email: { ... } } } }
+ * Also supports mixed levels: { identity: { sub: {...}, claims: { email: {...} } } }
  */
 export interface EventSchema {
-  [key: string]: Record<string, ParameterConfig> | EventSchema;
+  [key: string]: SchemaValue;
 }
 
 /**
@@ -119,11 +125,41 @@ export interface EventSchema {
  *   }
  * };
  * ```
+ * 
+ * @example
+ * ```typescript
+ * // AppSync resolver with identity claims
+ * const schema = {
+ *   arguments: {
+ *     id: {
+ *       label: 'User ID',
+ *       required: true,
+ *       expectedType: ParameterType.STRING
+ *     }
+ *   },
+ *   identity: {
+ *     sub: {
+ *       label: 'User Sub',
+ *       required: true
+ *     },
+ *     claims: {
+ *       email: {
+ *         label: 'Email from claims',
+ *         required: true
+ *       }
+ *     }
+ *   }
+ * };
+ * 
+ * const params = extractEventParams(schema, event);
+ * // params.id, params.sub, params.email
+ * ```
  */
 export function extractEventParams<T = Record<string, unknown>>(
   schema: EventSchema,
   event:
     | APIGatewayProxyEvent
+    | AppSyncResolverEvent<any, any>
     | Record<string, unknown>,
 ): T {
   const result: Record<string, unknown> = {};
@@ -174,7 +210,8 @@ export function extractEventParams<T = Record<string, unknown>>(
    * Recursively processes schema and extracts parameters
    */
   const processSchema = (schemaObj: EventSchema, pathPrefix = '') => {
-    Object.entries(schemaObj).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(schemaObj)) {
+      
       if (isParameterConfig(value)) {
         const fullKey = pathPrefix ? `${pathPrefix}.${key}` : key;
         const paramValue = getNestedValue(eventData, fullKey, value.caseInsensitive);
@@ -187,15 +224,15 @@ export function extractEventParams<T = Record<string, unknown>>(
             
             errors[fullKey] = [statusCode, errorMessage];
             errorStatusCodes[fullKey] = statusCode;
-            return;
+            continue;
           }
           
           if (value.default !== undefined) {
             result[key] = value.default;
-            return;
+            continue;
           }
           
-          return;
+          continue;
         }
 
         // Validate expected type
@@ -212,7 +249,7 @@ export function extractEventParams<T = Record<string, unknown>>(
             
             errors[fullKey] = [statusCode, errorMessage];
             errorStatusCodes[fullKey] = statusCode;
-            return;
+            continue;
           }
         }
 
@@ -228,7 +265,7 @@ export function extractEventParams<T = Record<string, unknown>>(
             
             errors[fullKey] = [statusCode, errorMessage];
             errorStatusCodes[fullKey] = statusCode;
-            return;
+            continue;
           }
         }
         
@@ -238,7 +275,7 @@ export function extractEventParams<T = Record<string, unknown>>(
         const newPath = pathPrefix ? `${pathPrefix}.${key}` : key;
         processSchema(value as EventSchema, newPath);
       }
-    });
+    }
   };
 
   // Process the schema

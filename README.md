@@ -401,14 +401,16 @@ export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
 
 ### AppSync Resolver Example
 
-AppSync Lambda resolvers receive GraphQL context and return typed results:
+AppSync Lambda resolvers receive GraphQL context and return typed results. The library provides **native AppSync support** with `AppSyncEventSchema`:
 
 ```typescript
 import { 
   extractEventParams,
+  logAppSyncEvent,
+  handleAppSyncError,
+  AppSyncEventSchema,
   ParameterType,
   NotFound,
-  BadRequest,
   HttpErrorStatus,
   validEmail,
   trimmedString
@@ -428,22 +430,18 @@ interface User {
 
 // AppSync resolver handler with typed arguments and result
 export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async (event, context) => {
-  // event.arguments contains GraphQL query arguments (typed as GetUserArgs)
-  // event.identity contains caller identity (Cognito, IAM, etc)
-  // event.source contains parent field data (for nested resolvers)
-  
-  console.info('AppSync Resolver', {
-    operation: event.info.fieldName,
-    parentType: event.info.parentTypeName,
-    userId: event.arguments.id,
-    identity: event.identity?.sub,
-  });
+  // Log AppSync event with operation details
+  logAppSyncEvent(event, context);
   
   try {
-    // Extract and validate GraphQL arguments using extractEventParams
-    // AppSync arguments come in event.arguments (not body, pathParameters, etc.)
-    const params = extractEventParams({
-      custom: {
+    // Native AppSync schema - extracts from arguments, identity, and identity.claims
+    const params = extractEventParams<{
+      id: string;
+      sub: string;
+      email: string;
+    }>({
+      // GraphQL arguments
+      arguments: {
         id: {
           label: 'User ID',
           required: true,
@@ -451,15 +449,26 @@ export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async 
           statusCodeError: HttpErrorStatus.BAD_REQUEST,
         },
       },
-    }, {
-      // Map event.arguments to custom parameters
-      custom: event.arguments,
-    } as any);
+      // Cognito identity with nested claims
+      identity: {
+        sub: {
+          label: 'Caller ID',
+          required: true,
+          statusCodeError: HttpErrorStatus.UNAUTHORIZED,
+        },
+        claims: {
+          email: {
+            label: 'Caller Email',
+            required: true,
+            decoder: validEmail,
+          },
+        },
+      },
+    } as AppSyncEventSchema, event);
     
-    // Authorization check using AppSync identity
-    if (event.identity?.sub !== params.id) {
-      // Only allow users to fetch their own data
-      throw new BadRequest('Unauthorized to access this user');
+    // Authorization check
+    if (params.sub !== params.id) {
+      throw new NotFound('Unauthorized to access this user');
     }
     
     // Fetch user from database
@@ -469,7 +478,6 @@ export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async 
       throw new NotFound(`User ${params.id} not found`);
     }
     
-    // Return typed result (must match User interface)
     return {
       id: user.id,
       name: user.name,
@@ -477,9 +485,8 @@ export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async 
     };
     
   } catch (error) {
-    // AppSync expects errors to be thrown, not returned
-    // They will be formatted in GraphQL errors array
-    throw error;
+    // Logs HttpError and re-throws for GraphQL to format
+    return handleAppSyncError(error);
   }
 };
 
@@ -491,35 +498,31 @@ interface CreateUserArgs {
   };
 }
 
-export const createUserResolver: AppSyncResolverHandler<CreateUserArgs, User> = async (event) => {
-  console.info('Create User', {
-    email: event.arguments.input?.email,
-    caller: event.identity?.sub,
-  });
+export const createUserResolver: AppSyncResolverHandler<CreateUserArgs, User> = async (event, context) => {
+  logAppSyncEvent(event, context);
   
   try {
-    // Validate nested input object from GraphQL mutation
-    const params = extractEventParams({
-      custom: {
+    // For mutations with nested input, map to arguments
+    const params = extractEventParams<{ name: string; email: string }>({
+      arguments: {
         name: {
           label: 'Name',
           required: true,
           expectedType: ParameterType.STRING,
-          statusCodeError: HttpErrorStatus.BAD_REQUEST,
-          decoder: trimmedString, // Remove whitespace and validate non-empty
+          decoder: trimmedString,
         },
         email: {
           label: 'Email',
           required: true,
           expectedType: ParameterType.STRING,
-          statusCodeError: HttpErrorStatus.BAD_REQUEST,
-          decoder: validEmail, // Validate format and normalize to lowercase
+          decoder: validEmail,
         },
       },
-    }, {
-      // Map nested input to custom parameters
-      custom: event.arguments.input || {},
-    } as any);
+    } as AppSyncEventSchema, {
+      // Flatten input to arguments
+      ...event,
+      arguments: event.arguments.input || {},
+    });
     
     // Create user with validated data
     const user = await createUser({

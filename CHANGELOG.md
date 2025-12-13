@@ -7,6 +7,17 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.1] - 2025-12-13
+
+### Alterado
+- **EventSchema melhorado** - Suporte nativo a schemas aninhados com `SchemaValue`
+  - Novo tipo `SchemaValue = ParameterConfig | { [key: string]: SchemaValue }`
+  - Permite estruturas mistas como `{ identity: { sub: {...}, claims: { email: {...} } } }`
+  - Removidas interfaces desnecessárias (`AppSyncEventSchema`, `AppSyncIdentitySchema`)
+  - Código ~100 linhas mais enxuto
+
+---
+
 ## [1.3.0] - 2025-12-13
 
 ### Adicionado
