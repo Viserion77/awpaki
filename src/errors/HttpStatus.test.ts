@@ -1,11 +1,19 @@
 import {
   HttpStatus,
+  HttpErrorStatus,
   isValidHttpStatus,
+  isValidHttpErrorStatus,
   getHttpStatusName,
 } from './HttpStatus';
 
 describe('HttpStatus', () => {
   describe('enum values', () => {
+    it('should have correct 2xx status codes', () => {
+      expect(HttpStatus.OK).toBe(200);
+      expect(HttpStatus.CREATED).toBe(201);
+      expect(HttpStatus.NO_CONTENT).toBe(204);
+    });
+
     it('should have correct 4xx status codes', () => {
       expect(HttpStatus.BAD_REQUEST).toBe(400);
       expect(HttpStatus.UNAUTHORIZED).toBe(401);
@@ -24,33 +32,73 @@ describe('HttpStatus', () => {
       expect(HttpStatus.SERVICE_UNAVAILABLE).toBe(503);
     });
 
-    it('should have 12 total status codes', () => {
+    it('should have all standard HTTP status codes', () => {
       const values = Object.values(HttpStatus).filter(v => typeof v === 'number');
+      expect(values.length).toBeGreaterThan(40); // Should have many status codes
+    });
+  });
+
+  describe('HttpErrorStatus', () => {
+    it('should have only error status codes', () => {
+      expect(HttpErrorStatus.BAD_REQUEST).toBe(400);
+      expect(HttpErrorStatus.NOT_FOUND).toBe(404);
+      expect(HttpErrorStatus.INTERNAL_SERVER_ERROR).toBe(500);
+    });
+
+    it('should reference HttpStatus values (no duplication)', () => {
+      // HttpErrorStatus values are references to HttpStatus
+      expect(HttpErrorStatus.BAD_REQUEST).toBe(HttpStatus.BAD_REQUEST);
+      expect(HttpErrorStatus.NOT_FOUND).toBe(HttpStatus.NOT_FOUND);
+      expect(HttpErrorStatus.INTERNAL_SERVER_ERROR).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
+    });
+
+    it('should have 12 total error status codes', () => {
+      const values = Object.values(HttpErrorStatus);
       expect(values).toHaveLength(12);
     });
   });
 
   describe('isValidHttpStatus', () => {
-    it('should return true for mapped status codes', () => {
-      expect(isValidHttpStatus(400)).toBe(true);
-      expect(isValidHttpStatus(401)).toBe(true);
+    it('should return true for all HTTP status codes', () => {
+      expect(isValidHttpStatus(200)).toBe(true);
+      expect(isValidHttpStatus(201)).toBe(true);
       expect(isValidHttpStatus(404)).toBe(true);
-      expect(isValidHttpStatus(422)).toBe(true);
       expect(isValidHttpStatus(500)).toBe(true);
-      expect(isValidHttpStatus(502)).toBe(true);
     });
 
     it('should return false for unmapped status codes', () => {
-      expect(isValidHttpStatus(200)).toBe(false);
-      expect(isValidHttpStatus(201)).toBe(false);
-      expect(isValidHttpStatus(418)).toBe(false);
       expect(isValidHttpStatus(999)).toBe(false);
       expect(isValidHttpStatus(0)).toBe(false);
+      expect(isValidHttpStatus(600)).toBe(false);
     });
 
     it('should work with HttpStatus enum', () => {
+      expect(isValidHttpStatus(HttpStatus.OK)).toBe(true);
       expect(isValidHttpStatus(HttpStatus.NOT_FOUND)).toBe(true);
       expect(isValidHttpStatus(HttpStatus.BAD_REQUEST)).toBe(true);
+    });
+  });
+
+  describe('isValidHttpErrorStatus', () => {
+    it('should return true for mapped error status codes', () => {
+      expect(isValidHttpErrorStatus(400)).toBe(true);
+      expect(isValidHttpErrorStatus(401)).toBe(true);
+      expect(isValidHttpErrorStatus(404)).toBe(true);
+      expect(isValidHttpErrorStatus(422)).toBe(true);
+      expect(isValidHttpErrorStatus(500)).toBe(true);
+      expect(isValidHttpErrorStatus(502)).toBe(true);
+    });
+
+    it('should return false for success codes and unmapped errors', () => {
+      expect(isValidHttpErrorStatus(200)).toBe(false);
+      expect(isValidHttpErrorStatus(201)).toBe(false);
+      expect(isValidHttpErrorStatus(418)).toBe(false); // Not mapped in HttpErrorStatus
+      expect(isValidHttpErrorStatus(999)).toBe(false);
+    });
+
+    it('should work with HttpErrorStatus enum', () => {
+      expect(isValidHttpErrorStatus(HttpErrorStatus.NOT_FOUND)).toBe(true);
+      expect(isValidHttpErrorStatus(HttpErrorStatus.BAD_REQUEST)).toBe(true);
     });
   });
 

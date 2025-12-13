@@ -17,7 +17,10 @@ export {
 } from './HttpErrors';
 export {
   HttpStatus,
+  HttpErrorStatus,
+  HttpErrorStatusType,
   isValidHttpStatus,
+  isValidHttpErrorStatus,
   getHttpStatusName,
 } from './HttpStatus';
 export {

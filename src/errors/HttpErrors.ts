@@ -1,8 +1,8 @@
 import { HttpError } from './HttpError';
-import { HttpStatus } from './HttpStatus';
+import { HttpErrorStatus, HttpStatus } from './HttpStatus';
 
-// Re-export HttpStatus for convenience
-export { HttpStatus };
+// Re-export both for convenience
+export { HttpErrorStatus, HttpStatus };
 
 /**
  * 400 Bad Request
@@ -20,7 +20,7 @@ export class BadRequest extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.BAD_REQUEST, data, headers);
+    super(message, HttpErrorStatus.BAD_REQUEST, data, headers);
   }
 }
 
@@ -40,7 +40,7 @@ export class Unauthorized extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.UNAUTHORIZED, data, headers);
+    super(message, HttpErrorStatus.UNAUTHORIZED, data, headers);
   }
 }
 
@@ -60,7 +60,7 @@ export class Forbidden extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.FORBIDDEN, data, headers);
+    super(message, HttpErrorStatus.FORBIDDEN, data, headers);
   }
 }
 
@@ -80,7 +80,7 @@ export class NotFound extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.NOT_FOUND, data, headers);
+    super(message, HttpErrorStatus.NOT_FOUND, data, headers);
   }
 }
 
@@ -100,7 +100,7 @@ export class Conflict extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.CONFLICT, data, headers);
+    super(message, HttpErrorStatus.CONFLICT, data, headers);
   }
 }
 
@@ -119,7 +119,7 @@ export class PreconditionFailed extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.PRECONDITION_FAILED, data, headers);
+    super(message, HttpErrorStatus.PRECONDITION_FAILED, data, headers);
   }
 }
 
@@ -139,7 +139,7 @@ export class UnprocessableEntity extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.UNPROCESSABLE_ENTITY, data, headers);
+    super(message, HttpErrorStatus.UNPROCESSABLE_ENTITY, data, headers);
   }
 }
 
@@ -158,7 +158,7 @@ export class TooManyRequests extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.TOO_MANY_REQUESTS, data, headers);
+    super(message, HttpErrorStatus.TOO_MANY_REQUESTS, data, headers);
   }
 }
 
@@ -178,7 +178,7 @@ export class InternalServerError extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.INTERNAL_SERVER_ERROR, data, headers);
+    super(message, HttpErrorStatus.INTERNAL_SERVER_ERROR, data, headers);
   }
 }
 
@@ -198,7 +198,7 @@ export class NotImplemented extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.NOT_IMPLEMENTED, data, headers);
+    super(message, HttpErrorStatus.NOT_IMPLEMENTED, data, headers);
   }
 }
 
@@ -218,7 +218,7 @@ export class BadGateway extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.BAD_GATEWAY, data, headers);
+    super(message, HttpErrorStatus.BAD_GATEWAY, data, headers);
   }
 }
 
@@ -237,7 +237,7 @@ export class ServiceUnavailable extends HttpError {
     data?: Record<string, any>,
     headers?: Record<string, string | boolean | number>
   ) {
-    super(message, HttpStatus.SERVICE_UNAVAILABLE, data, headers);
+    super(message, HttpErrorStatus.SERVICE_UNAVAILABLE, data, headers);
   }
 }
 
@@ -246,18 +246,18 @@ export class ServiceUnavailable extends HttpError {
  * Used for dynamic error instantiation based on status codes
  */
 export const HTTP_ERROR_MAP: Record<number, any> = {
-  [HttpStatus.BAD_REQUEST]: BadRequest,
-  [HttpStatus.UNAUTHORIZED]: Unauthorized,
-  [HttpStatus.FORBIDDEN]: Forbidden,
-  [HttpStatus.NOT_FOUND]: NotFound,
-  [HttpStatus.CONFLICT]: Conflict,
-  [HttpStatus.PRECONDITION_FAILED]: PreconditionFailed,
-  [HttpStatus.UNPROCESSABLE_ENTITY]: UnprocessableEntity,
-  [HttpStatus.TOO_MANY_REQUESTS]: TooManyRequests,
-  [HttpStatus.INTERNAL_SERVER_ERROR]: InternalServerError,
-  [HttpStatus.NOT_IMPLEMENTED]: NotImplemented,
-  [HttpStatus.BAD_GATEWAY]: BadGateway,
-  [HttpStatus.SERVICE_UNAVAILABLE]: ServiceUnavailable,
+  [HttpErrorStatus.BAD_REQUEST]: BadRequest,
+  [HttpErrorStatus.UNAUTHORIZED]: Unauthorized,
+  [HttpErrorStatus.FORBIDDEN]: Forbidden,
+  [HttpErrorStatus.NOT_FOUND]: NotFound,
+  [HttpErrorStatus.CONFLICT]: Conflict,
+  [HttpErrorStatus.PRECONDITION_FAILED]: PreconditionFailed,
+  [HttpErrorStatus.UNPROCESSABLE_ENTITY]: UnprocessableEntity,
+  [HttpErrorStatus.TOO_MANY_REQUESTS]: TooManyRequests,
+  [HttpErrorStatus.INTERNAL_SERVER_ERROR]: InternalServerError,
+  [HttpErrorStatus.NOT_IMPLEMENTED]: NotImplemented,
+  [HttpErrorStatus.BAD_GATEWAY]: BadGateway,
+  [HttpErrorStatus.SERVICE_UNAVAILABLE]: ServiceUnavailable,
 };
 
 /**

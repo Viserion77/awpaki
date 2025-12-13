@@ -155,6 +155,7 @@ import {
   handleApiGatewayError,
   NotFound,
   HttpStatus,
+  HttpErrorStatus,
   
   // Type safety
   HttpError
@@ -180,7 +181,7 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
           label: 'User ID',
           required: true,
           expectedType: ParameterType.STRING,
-          statusCodeError: HttpStatus.NOT_FOUND, // 404 if missing
+          statusCodeError: HttpErrorStatus.NOT_FOUND, // 404 if missing
         },
       },
       
@@ -190,7 +191,7 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
           label: 'Authorization',
           required: true,
           caseInsensitive: true, // Matches Authorization, authorization, AUTHORIZATION
-          statusCodeError: HttpStatus.UNAUTHORIZED, // 401 if missing
+          statusCodeError: HttpErrorStatus.UNAUTHORIZED, // 401 if missing
         },
         'content-type': {
           label: 'Content-Type',
@@ -809,39 +810,99 @@ Parses a JSON stringified body with enhanced null handling and validation.
 
 #### HTTP Status Enum
 
-Type-safe HTTP status codes with validation helpers:
+Type-safe HTTP status codes for all standard HTTP responses:
 
 ```typescript
-import { HttpStatus, isValidHttpStatus, getHttpStatusName } from 'awpaki';
+import { HttpStatus, HttpErrorStatus, isValidHttpStatus, isValidHttpErrorStatus, getHttpStatusName } from 'awpaki';
 
-// Use enum instead of magic numbers
+// HttpStatus - All standard HTTP status codes (1xx, 2xx, 3xx, 4xx, 5xx)
+return {
+  statusCode: HttpStatus.OK,              // 200
+  body: JSON.stringify({ success: true })
+};
+
+return {
+  statusCode: HttpStatus.CREATED,         // 201
+  body: JSON.stringify({ id: newId })
+};
+
+return {
+  statusCode: HttpStatus.NO_CONTENT,      // 204
+};
+
+// HttpErrorStatus - Only error codes with mapped error classes
 const schema = {
   pathParameters: {
     id: {
       label: 'User ID',
       required: true,
-      statusCodeError: HttpStatus.NOT_FOUND  // 404 - Type-safe!
+      statusCodeError: HttpErrorStatus.NOT_FOUND  // 404 - Type-safe!
     }
   },
   headers: {
     authorization: {
       label: 'Authorization',
       required: true,
-      statusCodeError: HttpStatus.UNAUTHORIZED  // 401
+      statusCodeError: HttpErrorStatus.UNAUTHORIZED  // 401
     }
   }
 };
 
 // Validation helpers
+isValidHttpStatus(200);           // true - validates all HTTP status codes
 isValidHttpStatus(404);           // true
 isValidHttpStatus(999);           // false
+
+isValidHttpErrorStatus(404);      // true - validates only error codes with classes
+isValidHttpErrorStatus(200);      // false - not an error status
+isValidHttpErrorStatus(418);      // false - not mapped in HttpErrorStatus
+
 getHttpStatusName(404);           // "NotFound"
 getHttpStatusName(HttpStatus.NOT_FOUND); // "NotFound"
+getHttpStatusName(200);           // undefined - no error class for success codes
 ```
 
-**Available Status Codes:**
+**HttpStatus - All Standard HTTP Status Codes:**
 ```typescript
 enum HttpStatus {
+  // 1xx Informational
+  CONTINUE = 100,
+  SWITCHING_PROTOCOLS = 101,
+  PROCESSING = 102,
+  
+  // 2xx Success
+  OK = 200,
+  CREATED = 201,
+  ACCEPTED = 202,
+  NO_CONTENT = 204,
+  // ... and more
+  
+  // 3xx Redirection
+  MOVED_PERMANENTLY = 301,
+  FOUND = 302,
+  NOT_MODIFIED = 304,
+  TEMPORARY_REDIRECT = 307,
+  // ... and more
+  
+  // 4xx Client Errors
+  BAD_REQUEST = 400,
+  UNAUTHORIZED = 401,
+  FORBIDDEN = 403,
+  NOT_FOUND = 404,
+  // ... and more
+  
+  // 5xx Server Errors
+  INTERNAL_SERVER_ERROR = 500,
+  NOT_IMPLEMENTED = 501,
+  BAD_GATEWAY = 502,
+  SERVICE_UNAVAILABLE = 503,
+  // ... and more
+}
+```
+
+**HttpErrorStatus - Error Codes with Mapped Error Classes:**
+```typescript
+enum HttpErrorStatus {
   BAD_REQUEST = 400,
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
@@ -931,28 +992,28 @@ The `HTTP_ERROR_MAP` object maps status codes to error classes:
 The `extractEventParams` function uses `createHttpError()` internally, so specifying `statusCodeError` in your schema will automatically throw the correct error type:
 
 ```typescript
-import { HttpStatus } from 'awpaki';
+import { HttpErrorStatus } from 'awpaki';
 
 const schema = {
   pathParameters: {
     id: { 
       label: 'User ID', 
       required: true, 
-      statusCodeError: HttpStatus.NOT_FOUND  // Type-safe
+      statusCodeError: HttpErrorStatus.NOT_FOUND  // Type-safe
     }
   },
   headers: {
     authorization: { 
       label: 'Authorization', 
       required: true, 
-      statusCodeError: HttpStatus.UNAUTHORIZED
+      statusCodeError: HttpErrorStatus.UNAUTHORIZED
     }
   },
   body: {
     email: { 
       label: 'Email', 
       required: true, 
-      statusCodeError: HttpStatus.BAD_REQUEST
+      statusCodeError: HttpErrorStatus.BAD_REQUEST
     }
   }
 };
@@ -988,7 +1049,7 @@ enum ParameterType {
 **Usage in extractEventParams:**
 
 ```typescript
-import { ParameterType, HttpStatus } from 'awpaki';
+import { ParameterType, HttpErrorStatus } from 'awpaki';
 
 const schema = {
   pathParameters: {
@@ -996,7 +1057,7 @@ const schema = {
       label: 'User ID',
       required: true,
       expectedType: ParameterType.STRING,  // Type-safe!
-      statusCodeError: HttpStatus.NOT_FOUND
+      statusCodeError: HttpErrorStatus.NOT_FOUND
     }
   },
   queryStringParameters: {
