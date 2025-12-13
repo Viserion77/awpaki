@@ -1,6 +1,6 @@
 {
   "name": "awpaki",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "AWS Patterns Kit - A utility library for AWS patterns",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

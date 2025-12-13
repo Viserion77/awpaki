@@ -7,6 +7,53 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.0] - 2025-12-13
+
+### Adicionado
+- **Suporte AppSync** - Novo logger e error handler para resolvers GraphQL
+  - `logAppSyncEvent(event, context)` - Logger para eventos AppSync
+    - Info: operation (Query/Mutation), fieldName, identity, identityType, argumentKeys
+    - Debug: arguments, source, requestHeaders, stash, prev
+  - `handleAppSyncError(error)` - Error handler que sempre re-lança (AppSync espera throw)
+    - Loga detalhes de `HttpError` antes de re-lançar
+    - Erros normais são re-lançados sem log adicional
+
+### Alterado
+- **Logging em Error Handlers** - Todos os handlers agora logam erros antes de retornar/re-lançar
+  - `handleApiGatewayError` - Loga HttpError antes de retornar response
+  - `handleGenericError` (e aliases) - Loga HttpError antes de retornar response genérica
+  - Erros desconhecidos são logados antes de re-throw
+
+### Exemplo de Uso
+```typescript
+import { 
+  logAppSyncEvent, 
+  handleAppSyncError,
+  extractEventParams,
+  NotFound 
+} from 'awpaki';
+import { AppSyncResolverHandler } from 'aws-lambda';
+
+export const resolver: AppSyncResolverHandler<Args, Result> = async (event, context) => {
+  logAppSyncEvent(event, context);
+  
+  try {
+    const params = extractEventParams({
+      custom: { id: { required: true } }
+    }, { custom: event.arguments } as any);
+    
+    const user = await getUser(params.id);
+    if (!user) throw new NotFound('User not found');
+    
+    return user;
+  } catch (error) {
+    return handleAppSyncError(error); // Always throws
+  }
+};
+```
+
+---
+
 ## [1.2.1] - 2025-12-13
 
 ### Alterado

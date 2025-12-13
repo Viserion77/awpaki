@@ -5,6 +5,7 @@ import {
   EventBridgeEvent,
   S3Event,
   DynamoDBStreamEvent,
+  AppSyncResolverEvent,
   Context 
 } from 'aws-lambda';
 import {
@@ -14,6 +15,7 @@ import {
   logEventBridgeEvent,
   logS3Event,
   logDynamoDBStreamEvent,
+  logAppSyncEvent,
 } from './logLambdaEvent';
 
 // Mock console methods
@@ -486,5 +488,151 @@ describe('logDynamoDBStreamEvent', () => {
     expect(eventData.tableName).toBe('users');
     const [, recordData] = consoleInfoOutput[1];
     expect(recordData.tableName).toBe('users');
+  });
+});
+
+const createMockAppSyncEvent = <TArgs = Record<string, any>, TSource = Record<string, any>>(
+  overrides: Partial<AppSyncResolverEvent<TArgs, TSource>> = {}
+): AppSyncResolverEvent<TArgs, TSource> => ({
+  arguments: { id: 'user-123' } as TArgs,
+  identity: {
+    sub: 'cognito-user-id-456',
+    issuer: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_xxx',
+    username: 'testuser',
+    claims: {},
+    sourceIp: ['192.168.1.1'],
+    defaultAuthStrategy: 'ALLOW',
+  } as any,
+  source: null as TSource,
+  request: {
+    headers: {
+      'authorization': 'Bearer token123',
+      'content-type': 'application/json',
+    },
+    domainName: null,
+  },
+  info: {
+    fieldName: 'getUser',
+    parentTypeName: 'Query',
+    selectionSetList: ['id', 'name', 'email'],
+    selectionSetGraphQL: '{ id name email }',
+    variables: {},
+  },
+  prev: null,
+  stash: {},
+  ...overrides,
+});
+
+describe('logAppSyncEvent', () => {
+  it('should log AppSync Query resolver event', () => {
+    const event = createMockAppSyncEvent();
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    expect(consoleInfoOutput).toHaveLength(1);
+    const [message, data] = consoleInfoOutput[0];
+    expect(message).toBe('Entry AppSync test-function:test-request-id-123');
+    expect(data.operation).toBe('Query');
+    expect(data.fieldName).toBe('getUser');
+    expect(data.identity).toBe('cognito-user-id-456');
+    expect(data.identityType).toBe('Cognito');
+    expect(data.argumentKeys).toContain('id');
+  });
+
+  it('should log AppSync Mutation resolver event', () => {
+    const event = createMockAppSyncEvent({
+      info: {
+        fieldName: 'createUser',
+        parentTypeName: 'Mutation',
+        selectionSetList: ['id', 'name'],
+        selectionSetGraphQL: '{ id name }',
+        variables: {},
+      },
+      arguments: { input: { name: 'John', email: 'john@example.com' } },
+    });
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    const [, data] = consoleInfoOutput[0];
+    expect(data.operation).toBe('Mutation');
+    expect(data.fieldName).toBe('createUser');
+    expect(data.argumentKeys).toContain('input');
+  });
+
+  it('should log field resolver with source', () => {
+    const event = createMockAppSyncEvent({
+      info: {
+        fieldName: 'author',
+        parentTypeName: 'Post',
+        selectionSetList: ['id', 'name'],
+        selectionSetGraphQL: '{ id name }',
+        variables: {},
+      },
+      source: { id: 'post-123', title: 'Test Post', authorId: 'author-456' } as any,
+      arguments: {} as any,
+    });
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    const [, data] = consoleInfoOutput[0];
+    expect(data.operation).toBe('Post');
+    expect(data.fieldName).toBe('author');
+    expect(data.hasSource).toBe(true);
+    expect(data.sourceKeys).toContain('id');
+    expect(data.sourceKeys).toContain('authorId');
+  });
+
+  it('should log anonymous identity when no identity', () => {
+    const event = createMockAppSyncEvent({
+      identity: null as any,
+    });
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    const [, data] = consoleInfoOutput[0];
+    expect(data.identity).toBe('anonymous');
+    expect(data.identityType).toBe('none');
+  });
+
+  it('should log full data in debug output', () => {
+    const event = createMockAppSyncEvent({
+      stash: { cachedValue: 'test' },
+    });
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, data] = consoleDebugOutput[0];
+    expect(message).toBe('AppSync Full Data test-function:test-request-id-123');
+    expect(data.arguments).toHaveProperty('id');
+    expect(data.requestHeaders).toHaveProperty('authorization');
+    expect(data.stash).toHaveProperty('cachedValue');
+  });
+
+  it('should include additional data in log', () => {
+    const event = createMockAppSyncEvent();
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context, { 
+      additionalData: { correlationId: 'corr-123' } 
+    });
+
+    const [, data] = consoleInfoOutput[0];
+    expect(data.correlationId).toBe('corr-123');
+  });
+
+  it('should log selectionSetList', () => {
+    const event = createMockAppSyncEvent();
+    const context = createMockContext();
+
+    logAppSyncEvent(event, context);
+
+    const [, data] = consoleInfoOutput[0];
+    expect(data.selectionSetList).toEqual(['id', 'name', 'email']);
   });
 });

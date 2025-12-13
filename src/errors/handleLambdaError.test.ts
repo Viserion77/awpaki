@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import {
   handleApiGatewayError,
   handleSqsError,
@@ -6,6 +6,7 @@ import {
   handleEventBridgeError,
   handleS3Error,
   handleDynamoDBStreamError,
+  handleAppSyncError,
 } from './handleLambdaError';
 import { HttpError } from './HttpError';
 import { BadRequest, NotFound, InternalServerError } from './HttpErrors';
@@ -222,6 +223,94 @@ describe('Error Handlers', () => {
       expect(response.error).toBe('InternalServerError');
       expect(response.statusCode).toBe(HttpStatus.INTERNAL_SERVER_ERROR);
       expect(response.data).toEqual({ code: 'ERR_001' });
+    });
+  });
+
+  describe('handleAppSyncError', () => {
+    // Mock console.error for these tests
+    const originalConsoleError = console.error;
+    let consoleErrorOutput: any[] = [];
+
+    beforeEach(() => {
+      consoleErrorOutput = [];
+      console.error = jest.fn((...args) => {
+        consoleErrorOutput.push(args);
+      });
+    });
+
+    afterEach(() => {
+      console.error = originalConsoleError;
+    });
+
+    it('should always throw HttpError', () => {
+      const error = new BadRequest('Invalid GraphQL input');
+      
+      expect(() => handleAppSyncError(error)).toThrow(BadRequest);
+      expect(() => handleAppSyncError(error)).toThrow('Invalid GraphQL input');
+    });
+
+    it('should log HttpError details before throwing', () => {
+      const error = new NotFound('User not found', { userId: '123' });
+      
+      try {
+        handleAppSyncError(error);
+      } catch {}
+
+      expect(consoleErrorOutput).toHaveLength(1);
+      const [message, data] = consoleErrorOutput[0];
+      expect(message).toBe('AppSync HttpError:');
+      expect(data.name).toBe('NotFound');
+      expect(data.message).toBe('User not found');
+      expect(data.statusCode).toBe(HttpStatus.NOT_FOUND);
+      expect(data.data).toEqual({ userId: '123' });
+    });
+
+    it('should throw and log standard Error', () => {
+      const error = new Error('Database connection failed');
+      
+      expect(() => handleAppSyncError(error)).toThrow('Database connection failed');
+      
+      // Standard errors are not logged, just re-thrown
+      expect(consoleErrorOutput).toHaveLength(0);
+    });
+
+    it('should throw and log unknown error types', () => {
+      const error = 'string error';
+      
+      expect(() => handleAppSyncError(error)).toThrow('string error');
+      
+      // Unknown errors are not logged, just re-thrown
+      expect(consoleErrorOutput).toHaveLength(0);
+    });
+
+    it('should work in AppSync resolver pattern', () => {
+      const resolver = () => {
+        try {
+          throw new NotFound('Resource not found');
+        } catch (error) {
+          // AppSync always throws - this never returns
+          handleAppSyncError(error);
+        }
+      };
+
+      expect(() => resolver()).toThrow('Resource not found');
+    });
+
+    it('should preserve original error for GraphQL formatting', () => {
+      const originalError = new BadRequest('Validation failed', { 
+        field: 'email',
+        reason: 'Invalid format' 
+      });
+      
+      try {
+        handleAppSyncError(originalError);
+      } catch (error) {
+        expect(error).toBe(originalError);
+        expect((error as BadRequest).data).toEqual({ 
+          field: 'email',
+          reason: 'Invalid format' 
+        });
+      }
     });
   });
 });

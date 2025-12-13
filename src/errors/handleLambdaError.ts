@@ -46,6 +46,12 @@ export interface GenericLambdaErrorResponse {
  */
 export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse | never {
   if (error instanceof HttpError) {
+    console.error('API Gateway HttpError:', {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+      data: error.data,
+    });
     const response = error.toApiGatewayResponse();
     return {
       statusCode: response.statusCode,
@@ -53,6 +59,8 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
       body: response.body,
     };
   }
+  
+  console.error('API Gateway Unknown Error:', error);
   throw error;
 }
 
@@ -82,8 +90,16 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
  */
 export function handleGenericError(error: unknown): GenericLambdaErrorResponse | never {
   if (error instanceof HttpError) {
+    console.error('Lambda HttpError:', {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+      data: error.data,
+    });
     return error.toGenericResponse();
   }
+  
+  console.error('Lambda Unknown Error:', error);
   throw error;
 }
 
@@ -116,3 +132,43 @@ export const handleS3Error = handleGenericError;
  * @see handleGenericError
  */
 export const handleDynamoDBStreamError = handleGenericError;
+
+/**
+ * Handles errors in AppSync resolver Lambda functions
+ * 
+ * AppSync expects errors to be thrown, not returned. This handler
+ * logs the error and always re-throws it so AppSync can format it
+ * properly in the GraphQL errors array.
+ * 
+ * @param error - The error that occurred
+ * @returns Never returns - always throws
+ * @throws Always re-throws the error for AppSync to handle
+ * 
+ * @example
+ * ```typescript
+ * export const resolver: AppSyncResolverHandler<Args, Result> = async (event, context) => {
+ *   logAppSyncEvent(event, context);
+ *   try {
+ *     const params = extractEventParams(schema, { custom: event.arguments } as any);
+ *     // ... your code
+ *     return result;
+ *   } catch (error) {
+ *     return handleAppSyncError(error);
+ *   }
+ * };
+ * ```
+ */
+export function handleAppSyncError(error: unknown): never {
+  if (error instanceof HttpError) {
+    console.error('AppSync HttpError:', {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+      data: error.data,
+    });
+  }
+  
+  // AppSync always expects errors to be thrown
+  // It will format them in the GraphQL errors array
+  throw error;
+}

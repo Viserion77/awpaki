@@ -105,6 +105,7 @@ export const myHandler: SQSHandler = async (event, context) => {
 |---|---|---|---|
 | `APIGatewayProxyHandler` | `APIGatewayProxyEvent` | `APIGatewayProxyResult` | REST API |
 | `APIGatewayProxyHandlerV2` | `APIGatewayProxyEventV2` | `APIGatewayProxyResultV2` | HTTP API (v2) |
+| `AppSyncResolverHandler<TArgs, TResult>` | `AppSyncResolverEvent<TArgs>` | `TResult \| Promise<TResult>` | AppSync GraphQL |
 | `SQSHandler` | `SQSEvent` | `SQSBatchResponse \| void` | Message queues |
 | `SNSHandler` | `SNSEvent` | `void` | Pub/sub notifications |
 | `DynamoDBStreamHandler` | `DynamoDBStreamEvent` | `DynamoDBBatchResponse \| void` | Database streams |
@@ -278,19 +279,6 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
     // Converts HttpError to proper API Gateway response
     // Re-throws non-HTTP errors for Lambda retry/DLQ
     return handleApiGatewayError(error);
-    
-    // Returns proper format:
-    // {
-    //   statusCode: 404,
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     message: 'User 123 not found',
-    //     $x-custom-metadata: {
-    //       logStreamName: '2024/12/08/[$LATEST]abc123',
-    //       functionName: 'my-api-handler'
-    //     }
-    //   })
-    // }
   }
 };
 
@@ -306,145 +294,309 @@ async function updateUser(userId: string, data: any) {
 }
 ```
 
-### SQS Handler Example
+### Event Loggers por Tipo de Trigger
 
-For non-API Gateway triggers, use generic error handlers. SQS supports partial batch failures:
+Cada tipo de evento Lambda tem um logger específico que extrai informações relevantes:
 
+| Logger Function | Event Type | Info Logged | Debug Logged |
+|---|---|---|---|
+| `logApiGatewayEvent(event, context)` | API Gateway | HTTP method, path, user agent | All headers, query params, body |
+| `logSqsEvent(event, context)` | SQS | Queue name, record count | Full message bodies |
+| `logSnsEvent(event, context)` | SNS | Topic ARN, subject, record count | Full message content |
+| `logEventBridgeEvent(event, context)` | EventBridge | Source, detail-type, account | Full event detail |
+| `logS3Event(event, context)` | S3 | Bucket, object key, event type | Object size, etag |
+| `logDynamoDBStreamEvent(event, context)` | DynamoDB Streams | Table name, event types, keys | Full old/new images |
+| `logAppSyncEvent(event, context)` | AppSync | Operation, field name, identity | Full arguments, source, headers |
+
+**Uso:**
 ```typescript
-import { 
-  logSqsEvent,
-  handleSqsError, // Alias for handleGenericError
-  BadRequest 
-} from 'awpaki';
-import { SQSHandler } from 'aws-lambda';
+import { logSqsEvent, logSnsEvent, logS3Event } from 'awpaki';
 
+// SQS Handler
 export const sqsHandler: SQSHandler = async (event, context) => {
-  // Log SQS event with record details
   logSqsEvent(event, context);
-  
-  try {
-    for (const record of event.Records) {
-      const body = JSON.parse(record.body);
-      
-      if (!body.userId) {
-        throw new BadRequest('userId is required');
-      }
-      
-      await processOrder(body);
-    }
-    
-    // Success - no return needed (void)
-    return;
-    
-  } catch (error) {
-    // Returns generic response or re-throws for retry
-    return handleSqsError(error);
-  }
+  // Logs: "SQS Event: queue=my-queue records=10"
+  // ...
 };
 
-// With partial batch failure reporting
-export const sqsHandlerWithBatchFailure: SQSHandler = async (event, context) => {
-  logSqsEvent(event, context);
-  
-  const batchItemFailures: { itemIdentifier: string }[] = [];
-  
-  for (const record of event.Records) {
-    try {
-      const body = JSON.parse(record.body);
-      await processOrder(body);
-    } catch (error) {
-      console.error('Failed to process record:', record.messageId, error);
-      // Report failed items for retry
-      batchItemFailures.push({ itemIdentifier: record.messageId });
-    }
-  }
-  
-  // Return batch failures (type-safe: SQSBatchResponse)
-  return { batchItemFailures };
+// SNS Handler
+export const snsHandler: SNSHandler = async (event, context) => {
+  logSnsEvent(event, context);
+  // Logs: "SNS Event: topic=arn:aws:sns:...:my-topic subject=Alert records=1"
+  // ...
+};
+
+// S3 Handler
+export const s3Handler: S3Handler = async (event, context) => {
+  logS3Event(event, context);
+  // Logs: "S3 Event: bucket=my-bucket key=folder/file.jpg eventName=ObjectCreated:Put"
+  // ...
 };
 ```
 
-### DynamoDB Stream Handler Example
+### Error Handlers por Tipo de Trigger
 
-DynamoDB Streams support partial batch failures for retry:
+Cada tipo de trigger precisa de um error handler específico:
 
+| Error Handler | Event Type | Return Type | Comportamento |
+|---|---|---|---|
+| `handleApiGatewayError(error)` | API Gateway | `APIGatewayProxyResult` | Retorna response HTTP com statusCode |
+| `handleAppSyncError(error)` | AppSync | `never` | Loga e re-lança erro (GraphQL formata) |
+| `handleSqsError(error)` | SQS | `void` | Re-lança erro para retry/DLQ |
+| `handleSnsError(error)` | SNS | `void` | Re-lança erro para retry/DLQ |
+| `handleEventBridgeError(error)` | EventBridge | `void` | Re-lança erro para retry/DLQ |
+| `handleS3Error(error)` | S3 | `void` | Re-lança erro para retry/DLQ |
+| `handleDynamoDBStreamError(error)` | DynamoDB Streams | `void` | Re-lança erro para retry/DLQ |
+| `handleGenericError(error)` | Qualquer | `void` | Alias genérico (mesma lógica) |
+
+**Diferenças:**
+
+- **API Gateway**: Converte `HttpError` em response HTTP formatado. Não re-lança.
+- **AppSync**: Loga detalhes do erro e sempre re-lança para GraphQL formatar no array `errors`.
+- **Outros triggers**: Re-lançam erros não-HTTP para acionar retry/DLQ do AWS Lambda.
+
+**Uso:**
 ```typescript
 import { 
-  logDynamoDBStreamEvent,
+  handleSqsError, 
   handleDynamoDBStreamError,
-  InternalServerError 
-} from 'awpaki';
-import { DynamoDBStreamHandler } from 'aws-lambda';
-
-export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
-  // Log stream event with keys and image details
-  logDynamoDBStreamEvent(event, context);
-  
-  const batchItemFailures: { itemIdentifier: string }[] = [];
-  
-  for (const record of event.Records) {
-    try {
-      if (record.eventName === 'INSERT') {
-        const newItem = record.dynamodb?.NewImage;
-        await syncToElasticsearch(newItem);
-      }
-      
-      if (record.eventName === 'MODIFY') {
-        const oldItem = record.dynamodb?.OldImage;
-        const newItem = record.dynamodb?.NewImage;
-        await updateSearchIndex(oldItem, newItem);
-      }
-      
-      if (record.eventName === 'REMOVE') {
-        const keys = record.dynamodb?.Keys;
-        await deleteFromSearchIndex(keys);
-      }
-    } catch (error) {
-      console.error('Failed to process record:', record.eventID, error);
-      // Report failed items for retry (type-safe: DynamoDBBatchResponse)
-      batchItemFailures.push({ itemIdentifier: record.dynamodb?.SequenceNumber || '' });
-    }
-  }
-  
-  // Return batch failures for retry
-  return { batchItemFailures };
-};
-```
-
-### SNS Handler Example
-
-SNS handlers typically don't return values (void):
-
-```typescript
-import { 
-  logSnsEvent,
-  handleSnsError,
   BadRequest 
 } from 'awpaki';
-import { SNSHandler } from 'aws-lambda';
 
-export const snsHandler: SNSHandler = async (event, context) => {
-  // Log SNS event
-  logSnsEvent(event, context);
-  
+// SQS Handler
+export const sqsHandler: SQSHandler = async (event, context) => {
   try {
+    // Process messages
     for (const record of event.Records) {
-      const message = JSON.parse(record.Sns.Message);
-      
-      // Process notification
-      await sendEmail({
-        to: message.email,
-        subject: record.Sns.Subject,
-        body: message.body,
+      const body = JSON.parse(record.body);
+      await processMessage(body);
+    }
+  } catch (error) {
+    return handleSqsError(error); // Re-throws for retry
+  }
+};
+
+// DynamoDB Stream Handler com batch failures
+export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
+  const batchItemFailures: { itemIdentifier: string }[] = [];
+  
+  for (const record of event.Records) {
+    try {
+      await processRecord(record);
+    } catch (error) {
+      console.error('Failed record:', record.eventID, error);
+      batchItemFailures.push({ 
+        itemIdentifier: record.dynamodb?.SequenceNumber || '' 
       });
     }
+  }
+  
+  // Return failed items for retry (type-safe)
+  return { batchItemFailures };
+};
+```
+
+**Observação:** Todos os handlers SQS/SNS/EventBridge/S3/DynamoDB são **aliases** de `handleGenericError`. Use o que for mais semântico para seu caso.
+
+
+### AppSync Resolver Example
+
+AppSync Lambda resolvers receive GraphQL context and return typed results:
+
+```typescript
+import { 
+  extractEventParams,
+  ParameterType,
+  NotFound,
+  BadRequest,
+  HttpErrorStatus,
+  validEmail,
+  trimmedString
+} from 'awpaki';
+import { AppSyncResolverHandler } from 'aws-lambda';
+
+// Define your GraphQL types
+interface GetUserArgs {
+  id: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+// AppSync resolver handler with typed arguments and result
+export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async (event, context) => {
+  // event.arguments contains GraphQL query arguments (typed as GetUserArgs)
+  // event.identity contains caller identity (Cognito, IAM, etc)
+  // event.source contains parent field data (for nested resolvers)
+  
+  console.info('AppSync Resolver', {
+    operation: event.info.fieldName,
+    parentType: event.info.parentTypeName,
+    userId: event.arguments.id,
+    identity: event.identity?.sub,
+  });
+  
+  try {
+    // Extract and validate GraphQL arguments using extractEventParams
+    // AppSync arguments come in event.arguments (not body, pathParameters, etc.)
+    const params = extractEventParams({
+      custom: {
+        id: {
+          label: 'User ID',
+          required: true,
+          expectedType: ParameterType.STRING,
+          statusCodeError: HttpErrorStatus.BAD_REQUEST,
+        },
+      },
+    }, {
+      // Map event.arguments to custom parameters
+      custom: event.arguments,
+    } as any);
     
-    // No return needed (void)
+    // Authorization check using AppSync identity
+    if (event.identity?.sub !== params.id) {
+      // Only allow users to fetch their own data
+      throw new BadRequest('Unauthorized to access this user');
+    }
+    
+    // Fetch user from database
+    const user = await getUserById(params.id);
+    
+    if (!user) {
+      throw new NotFound(`User ${params.id} not found`);
+    }
+    
+    // Return typed result (must match User interface)
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+    };
     
   } catch (error) {
-    return handleSnsError(error);
+    // AppSync expects errors to be thrown, not returned
+    // They will be formatted in GraphQL errors array
+    throw error;
   }
 };
+
+// Mutation example with nested input validation
+interface CreateUserArgs {
+  input: {
+    name: string;
+    email: string;
+  };
+}
+
+export const createUserResolver: AppSyncResolverHandler<CreateUserArgs, User> = async (event) => {
+  console.info('Create User', {
+    email: event.arguments.input?.email,
+    caller: event.identity?.sub,
+  });
+  
+  try {
+    // Validate nested input object from GraphQL mutation
+    const params = extractEventParams({
+      custom: {
+        name: {
+          label: 'Name',
+          required: true,
+          expectedType: ParameterType.STRING,
+          statusCodeError: HttpErrorStatus.BAD_REQUEST,
+          decoder: trimmedString, // Remove whitespace and validate non-empty
+        },
+        email: {
+          label: 'Email',
+          required: true,
+          expectedType: ParameterType.STRING,
+          statusCodeError: HttpErrorStatus.BAD_REQUEST,
+          decoder: validEmail, // Validate format and normalize to lowercase
+        },
+      },
+    }, {
+      // Map nested input to custom parameters
+      custom: event.arguments.input || {},
+    } as any);
+    
+    // Create user with validated data
+    const user = await createUser({
+      name: params.name,
+      email: params.email,
+    });
+    
+    return user;
+    
+  } catch (error) {
+    throw error; // AppSync will format as GraphQL error
+  }
+};
+
+// Nested resolver example (field resolver)
+interface Post {
+  id: string;
+  title: string;
+  authorId: string;
+}
+
+interface PostAuthorArgs {
+  // No arguments for this field
+}
+
+// Resolver for Post.author field
+export const postAuthorResolver: AppSyncResolverHandler<PostAuthorArgs, User> = async (event) => {
+  // event.source contains the parent Post object
+  const post = event.source as Post;
+  
+  console.debug('Resolving author for post', { postId: post.id, authorId: post.authorId });
+  
+  const author = await getUserById(post.authorId);
+  
+  if (!author) {
+    throw new NotFound(`Author ${post.authorId} not found`);
+  }
+  
+  return author;
+};
+
+// Mock functions (replace with your actual implementation)
+async function getUserById(id: string): Promise<User | null> {
+  // Your database logic
+  return null;
+}
+
+async function createUser(data: { name: string; email: string }): Promise<User> {
+  // Your database logic
+  return { id: '123', ...data };
+}
+```
+
+**AppSync Event Structure:**
+```typescript
+{
+  arguments: TArgs,              // GraphQL query/mutation arguments
+  identity: {                    // Caller identity
+    sub: string,                 // User ID (Cognito)
+    username?: string,
+    claims?: Record<string, any>,
+    sourceIp?: string[],
+  },
+  source: TSource,               // Parent object (for nested resolvers)
+  request: {
+    headers: Record<string, string>,
+  },
+  info: {
+    fieldName: string,           // GraphQL field being resolved
+    parentTypeName: string,      // Parent type (Query, Mutation, etc)
+    variables: Record<string, any>,
+  },
+  prev: {                        // Previous resolver result (pipeline)
+    result: any,
+  },
+  stash: Record<string, any>,    // State shared across pipeline resolvers
+}
 ```
 
 ### Lambda Event Logging

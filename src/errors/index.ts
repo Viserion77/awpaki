@@ -31,6 +31,7 @@ export {
   handleEventBridgeError,
   handleS3Error,
   handleDynamoDBStreamError,
+  handleAppSyncError,
   type ApiGatewayErrorResponse,
   type GenericLambdaErrorResponse,
 } from './handleLambdaError';

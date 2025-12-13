@@ -5,6 +5,7 @@ import {
   EventBridgeEvent,
   S3Event,
   DynamoDBStreamEvent,
+  AppSyncResolverEvent,
   Context 
 } from 'aws-lambda';
 
@@ -355,4 +356,63 @@ export function logDynamoDBStreamEvent(
   }
 }
 
+/**
+ * Logs AppSync resolver event information for tracking and debugging
+ * 
+ * Works with Query, Mutation, and Field resolvers. The operation type
+ * is automatically detected from event.info.parentTypeName.
+ * 
+ * @param event - AppSync resolver event
+ * @param context - Lambda context
+ * @param config - Optional logging configuration
+ * 
+ * @example
+ * ```typescript
+ * export const resolver: AppSyncResolverHandler<Args, Result> = async (event, context) => {
+ *   logAppSyncEvent(event, context);
+ *   // ... rest of resolver
+ * };
+ * ```
+ */
+export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Record<string, any>>(
+  event: AppSyncResolverEvent<TArguments, TSource>,
+  context: Context,
+  config?: LogConfig
+): void {
+  const identifier = `${context.functionName}:${context.awsRequestId}`;
+  
+  // Extract identity info safely across different identity types
+  const identity = event.identity as any;
+  const identityValue = identity?.sub || identity?.username || identity?.resolverContext || 'anonymous';
+  const identityType = !identity ? 'none' :
+    identity.sub ? 'Cognito' :
+    identity.accountId ? 'IAM' :
+    identity.resolverContext ? 'Lambda' :
+    'API_KEY';
+  
+  const logData = {
+    requestId: context.awsRequestId,
+    functionName: context.functionName,
+    functionVersion: context.functionVersion,
+    operation: event.info.parentTypeName,
+    fieldName: event.info.fieldName,
+    selectionSetList: event.info.selectionSetList,
+    identity: identityValue,
+    identityType,
+    argumentKeys: Object.keys(event.arguments || {}),
+    hasSource: !!event.source,
+    sourceKeys: event.source ? Object.keys(event.source as object) : undefined,
+    ...(config?.additionalData || {}),
+  };
 
+  console.info(`Entry AppSync ${identifier}`, logData);
+  
+  // Log full arguments and source in debug
+  console.debug(`AppSync Full Data ${identifier}`, {
+    arguments: event.arguments,
+    source: event.source,
+    requestHeaders: event.request?.headers,
+    stash: event.stash,
+    prev: event.prev?.result,
+  });
+}
