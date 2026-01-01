@@ -1,5 +1,5 @@
 import { APIGatewayProxyResult } from 'aws-lambda';
-import { HttpError } from './HttpError';
+import { HttpError } from '../http/HttpError';
 
 /**
  * API Gateway error response format

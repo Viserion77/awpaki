@@ -16,27 +16,88 @@ npm install awpaki
 
 - Node.js >= 22.0.0
 
+## Environment Variables
+
+The library uses environment variables for AWS client configuration and Lambda metadata. Most are automatically set by AWS Lambda runtime.
+
+### AWS Clients Configuration
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `AWS_REGION` | AWS region for all clients (e.g., `us-east-1`) | Yes* | - |
+| `AWS_DEFAULT_REGION` | Fallback region if `AWS_REGION` is not set | No | - |
+| `AWS_ENDPOINT_URL` | Global endpoint override for all AWS services | No | - |
+| `AWS_ENDPOINT_URL_DYNAMODB` | DynamoDB-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+| `AWS_ENDPOINT_URL_S3` | S3-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+| `AWS_ENDPOINT_URL_SQS` | SQS-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+| `AWS_ENDPOINT_URL_LAMBDA` | Lambda-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+| `AWS_ENDPOINT_URL_SNS` | SNS-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+
+\* `AWS_REGION` is automatically set by AWS Lambda runtime. Only required when running locally.
+
+### Lambda Runtime Variables (Auto-set by AWS)
+
+These variables are automatically set by AWS Lambda and used for enhanced error responses:
+
+| Variable | Description | Used For |
+|----------|-------------|----------|
+| `AWS_LAMBDA_FUNCTION_NAME` | Name of the Lambda function | Error metadata |
+| `AWS_LAMBDA_LOG_STREAM_NAME` | CloudWatch log stream name | Error tracing |
+| `AWS_EXECUTION_ENV` | Lambda execution environment (e.g., `AWS_Lambda_nodejs20.x`) | Error metadata |
+
+### Example: Local Development with LocalStack
+
+```bash
+# .env file for local development
+AWS_REGION=us-east-1
+AWS_ENDPOINT_URL=http://localhost:4566
+
+# Or service-specific endpoints
+AWS_ENDPOINT_URL_DYNAMODB=http://localhost:4566
+AWS_ENDPOINT_URL_S3=http://localhost:4566
+AWS_ENDPOINT_URL_SQS=http://localhost:4566
+```
+
+### Example: Production (AWS Lambda)
+
+In production, AWS Lambda automatically sets:
+- `AWS_REGION` - From the Lambda's deployed region
+- `AWS_LAMBDA_FUNCTION_NAME` - From the function configuration
+- `AWS_LAMBDA_LOG_STREAM_NAME` - Unique per invocation
+- `AWS_EXECUTION_ENV` - Lambda runtime information
+
+No additional configuration is needed when running in AWS Lambda.
+
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest (188 tests passing)
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (237 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
-- 🗂️ **Modular Architecture**: Organized by feature categories (parsers, errors, extractors, validators, transformers, loggers, decoders)
+- 🗂️ **Modular Architecture**: Organized by feature categories (clients, parsers, errors, extractors, loggers, decoders)
 - 📚 **Flexible Imports**: Import from root or specific categories
 - 🔒 **Type Safety**: Enums for HTTP status codes and parameter types
 - 📊 **Lambda Logging**: Built-in event logging for production tracking
 - ✅ **Validation Decoders**: 17 battle-tested decoders for common validation patterns
+- 🔄 **AWS Clients**: Pre-configured AWS SDK v3 clients with automatic retry logic
+- ⚡ **Singleton Pattern**: Lightweight clients initialized from environment variables
 
 ## Usage
 
 The library is organized into categories for better organization:
 
+- **clients/**: AWS SDK v3 clients with automatic retry logic
+  - DynamoDB (Document Client)
+  - S3
+  - SQS
+  - Lambda
+  - SNS
 - **parsers/**: Data parsing utilities (JSON, etc.)
 - **errors/**: Custom error classes and error handling
+  - HTTP errors with status codes
+  - Lambda error handlers for different triggers
 - **extractors/**: Parameter and data extraction utilities
-- **validators/**: Input validation functions
-- **transformers/**: Data transformation utilities
+- **loggers/**: Lambda event logging for all trigger types
 - **decoders/**: Validation and transformation decoders for extractEventParams
 
 ### Import Options
@@ -1405,15 +1466,313 @@ logApiGatewayEvent(event, context, {
 
 ---
 
-### Validators
+### AWS Clients
 
-Coming soon - Input validation functions.
+AWS SDK v3 clients with automatic retry logic using async-retry. These clients use a singleton pattern and are configured via environment variables, making them perfect for serverless applications.
 
----
+#### Features
 
-### Transformers
+- ✅ Singleton pattern (no factory functions needed)
+- ✅ Configured via environment variables
+- ✅ Automatic retry with optional custom options
+- ✅ Full TypeScript support
+- ✅ Works with all AWS SDK v3 commands
+- ✅ Zero configuration for standard Lambda environments
 
-Coming soon - Data transformation utilities.
+#### Available Clients
+
+- **DynamoDB**: `dynamodbClient` (Document Client)
+- **S3**: `s3Client`
+- **SQS**: `sqsClient`
+- **Lambda**: `lambdaClient`
+- **SNS**: `snsClient`
+
+#### Environment Variables
+
+Clients are automatically configured from environment variables:
+
+- `AWS_REGION` or `AWS_DEFAULT_REGION` - AWS region
+- `AWS_ENDPOINT_URL` - Global endpoint override (useful for LocalStack)
+- `AWS_ENDPOINT_URL_DYNAMODB` - DynamoDB-specific endpoint
+- `AWS_ENDPOINT_URL_S3` - S3-specific endpoint
+- `AWS_ENDPOINT_URL_SQS` - SQS-specific endpoint
+- `AWS_ENDPOINT_URL_LAMBDA` - Lambda-specific endpoint
+- `AWS_ENDPOINT_URL_SNS` - SNS-specific endpoint
+
+#### Installation
+
+Install only the AWS SDK clients you need as peer dependencies:
+
+```bash
+# For DynamoDB
+npm install @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb async-retry
+
+# For S3
+npm install @aws-sdk/client-s3 async-retry
+
+# For SQS
+npm install @aws-sdk/client-sqs async-retry
+
+# For Lambda
+npm install @aws-sdk/client-lambda async-retry
+
+# For SNS
+npm install @aws-sdk/client-sns async-retry
+```
+
+#### DynamoDB Client
+
+```typescript
+import { dynamodbClient } from 'awpaki/clients';
+import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+
+// Simple usage - uses default retry options (3 retries)
+const user = await dynamodbClient.execute(
+  new GetCommand({
+    TableName: 'Users',
+    Key: { id: '123' },
+  })
+);
+
+// With custom retry options for this specific call
+const user = await dynamodbClient.execute(
+  new GetCommand({
+    TableName: 'Users',
+    Key: { id: '123' },
+  }),
+  {
+    retries: 5,
+    minTimeout: 500,
+    maxTimeout: 2000,
+  }
+);
+
+// Put item
+await dynamodbClient.execute(
+  new PutCommand({
+    TableName: 'Users',
+    Item: {
+      id: '123',
+      name: 'John Doe',
+      email: 'john@example.com',
+    },
+  })
+);
+
+// Query with index
+const results = await dynamodbClient.execute(
+  new QueryCommand({
+    TableName: 'Users',
+    IndexName: 'EmailIndex',
+    KeyConditionExpression: 'email = :email',
+    ExpressionAttributeValues: {
+      ':email': 'john@example.com',
+    },
+  })
+);
+```
+
+#### S3 Client
+
+```typescript
+import { s3Client } from 'awpaki/clients';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+
+// Get object
+const response = await s3Client.execute(
+  new GetObjectCommand({
+    Bucket: 'my-bucket',
+    Key: 'path/to/file.json',
+  })
+);
+
+// Read the body
+const body = await response.Body.transformToString();
+const data = JSON.parse(body);
+
+// Put object
+await s3Client.execute(
+  new PutObjectCommand({
+    Bucket: 'my-bucket',
+    Key: 'path/to/file.json',
+    Body: JSON.stringify({ key: 'value' }),
+    ContentType: 'application/json',
+  })
+);
+```
+
+#### SQS Client
+
+```typescript
+import { sqsClient } from 'awpaki/clients';
+import {
+  SendMessageCommand,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} from '@aws-sdk/client-sqs';
+
+const queueUrl = 'https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue';
+
+// Send message
+await sqsClient.execute(
+  new SendMessageCommand({
+    QueueUrl: queueUrl,
+    MessageBody: JSON.stringify({ orderId: '123' }),
+  })
+);
+
+// Receive messages
+const response = await sqsClient.execute(
+  new ReceiveMessageCommand({
+    QueueUrl: queueUrl,
+    MaxNumberOfMessages: 10,
+    WaitTimeSeconds: 20,
+  })
+);
+
+// Delete message
+if (response.Messages) {
+  for (const message of response.Messages) {
+    await sqsClient.execute(
+      new DeleteMessageCommand({
+        QueueUrl: queueUrl,
+        ReceiptHandle: message.ReceiptHandle,
+      })
+    );
+  }
+}
+```
+
+#### Lambda Client
+
+```typescript
+import { lambdaClient } from 'awpaki/clients';
+import { InvokeCommand } from '@aws-sdk/client-lambda';
+
+// Invoke function
+const response = await lambdaClient.execute(
+  new InvokeCommand({
+    FunctionName: 'my-function',
+    Payload: JSON.stringify({
+      userId: '123',
+      action: 'processOrder',
+    }),
+  })
+);
+
+// Parse response
+const result = JSON.parse(Buffer.from(response.Payload).toString());
+```
+
+#### SNS Client
+
+```typescript
+import { snsClient } from 'awpaki/clients';
+import { PublishCommand } from '@aws-sdk/client-sns';
+
+// Publish message
+await snsClient.execute(
+  new PublishCommand({
+    TopicArn: 'arn:aws:sns:us-east-1:123456789012:MyTopic',
+    Message: JSON.stringify({
+      event: 'ORDER_CREATED',
+      orderId: '123',
+    }),
+    MessageAttributes: {
+      eventType: {
+        DataType: 'String',
+        StringValue: 'ORDER_CREATED',
+      },
+    },
+  })
+);
+```
+
+#### Retry Configuration
+
+All clients support optional retry configuration per request:
+
+```typescript
+import { dynamodbClient, type RetryOptions } from 'awpaki/clients';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+
+// Default retry options (used if not specified)
+const defaultOptions: RetryOptions = {
+  retries: 3,        // Number of retry attempts
+  minTimeout: 1000,  // Initial timeout (ms)
+  maxTimeout: 3000,  // Maximum timeout (ms)
+};
+
+// Custom retry for specific request
+const user = await dynamodbClient.execute(
+  new GetCommand({
+    TableName: 'Users',
+    Key: { id: '123' },
+  }),
+  {
+    retries: 5,
+    minTimeout: 500,
+    maxTimeout: 5000,
+  }
+);
+
+```typescript
+interface RetryOptions {
+  /**
+   * Maximum number of retries (default: 3)
+   */
+  retries?: number;
+  
+  /**
+   * Minimum timeout between retries in milliseconds (default: 1000)
+   */
+  minTimeout?: number;
+  
+  /**
+   * Maximum timeout between retries in milliseconds (default: 3000)
+   */
+  maxTimeout?: number;
+  
+  /**
+   * Randomize timeout (default: true)
+   */
+  randomize?: boolean;
+```
+
+#### Type Safety
+
+All clients are fully typed and work with TypeScript's type inference:
+
+```typescript
+import { dynamodbClient } from 'awpaki/clients';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+
+// Type is inferred from the command
+const response = await dynamodbClient.execute(
+  new GetCommand({
+    TableName: 'Users',
+    Key: { id: '123' },
+  })
+);
+// response.Item is automatically typed by AWS SDK
+
+// Explicit typing for your data models
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+const user = response.Item as User;
+
+const result = await db.execute<{ Item: User }>(
+  new GetCommand({
+    TableName: 'Users',
+    Key: { id: '123' },
+  })
+);
+// result.Item is now User type
+```
 
 ---
 
@@ -1422,18 +1781,51 @@ Coming soon - Data transformation utilities.
 ```
 src/
 ├── index.ts              # Main entry point - exports all modules
+├── clients/              # AWS SDK client abstractions
+│   ├── index.ts          # Re-exports all clients
+│   ├── dynamodb/
+│   │   ├── index.ts      # DynamoDB client implementation
+│   │   └── index.test.ts # DynamoDB client tests
+│   ├── s3/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   ├── sqs/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   ├── lambda/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   └── sns/
+│       ├── index.ts
+│       └── index.test.ts
 ├── parsers/              # JSON and data parsing utilities
 │   ├── index.ts
 │   ├── parseJsonBody.ts
 │   └── parseJsonBody.test.ts
-├── errors/               # Custom error classes (coming soon)
-│   └── index.ts
-├── extractors/           # Parameter extractors (coming soon)
-│   └── index.ts
-├── validators/           # Input validators (coming soon)
-│   └── index.ts
-└── transformers/         # Data transformers (coming soon)
-    └── index.ts
+├── errors/               # Custom error classes and error handling
+│   ├── index.ts          # Re-exports all errors
+│   ├── http/             # HTTP error classes and status codes
+│   │   ├── HttpError.ts
+│   │   ├── HttpErrors.ts
+│   │   ├── HttpErrors.test.ts
+│   │   ├── HttpStatus.ts
+│   │   ├── HttpStatus.test.ts
+│   │   └── createHttpError.test.ts
+│   └── handlers/         # Lambda error handlers
+│       ├── handleLambdaError.ts
+│       └── handleLambdaError.test.ts
+├── extractors/           # Parameter and data extraction utilities
+│   ├── index.ts
+│   ├── extractEventParams.ts
+│   └── extractEventParams.test.ts
+├── loggers/              # Lambda event logging utilities
+│   ├── index.ts
+│   ├── logLambdaEvent.ts
+│   └── logLambdaEvent.test.ts
+└── decoders/             # Type decoders and validators
+    ├── index.ts
+    ├── decoders.ts
+    └── decoders.test.ts
 ```
 
 For detailed guidelines on adding new features, see [.github/copilot-instructions.md](.github/copilot-instructions.md).

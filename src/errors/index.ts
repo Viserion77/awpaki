@@ -1,4 +1,4 @@
-export { HttpError } from './HttpError';
+export { HttpError } from './http/HttpError';
 export {
   BadRequest,
   Unauthorized,
@@ -14,7 +14,7 @@ export {
   ServiceUnavailable,
   HTTP_ERROR_MAP,
   createHttpError,
-} from './HttpErrors';
+} from './http/HttpErrors';
 export {
   HttpStatus,
   HttpErrorStatus,
@@ -22,7 +22,7 @@ export {
   isValidHttpStatus,
   isValidHttpErrorStatus,
   getHttpStatusName,
-} from './HttpStatus';
+} from './http/HttpStatus';
 export {
   handleApiGatewayError,
   handleGenericError,
@@ -34,4 +34,4 @@ export {
   handleAppSyncError,
   type ApiGatewayErrorResponse,
   type GenericLambdaErrorResponse,
-} from './handleLambdaError';
+} from './handlers/handleLambdaError';

@@ -18,3 +18,9 @@ export * from './loggers';
 
 // Export all decoders
 export * from './decoders';
+
+// Export all AWS clients
+export * from './clients';
+
+// Export all clients
+export * from './clients';

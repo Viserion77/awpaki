@@ -8,9 +8,9 @@ import {
   handleDynamoDBStreamError,
   handleAppSyncError,
 } from './handleLambdaError';
-import { HttpError } from './HttpError';
-import { BadRequest, NotFound, InternalServerError } from './HttpErrors';
-import { HttpStatus } from './HttpStatus';
+import { HttpError } from '../http/HttpError';
+import { BadRequest, NotFound, InternalServerError } from '../http/HttpErrors';
+import { HttpStatus } from '../http/HttpStatus';
 
 describe('Error Handlers', () => {
   describe('handleApiGatewayError', () => {

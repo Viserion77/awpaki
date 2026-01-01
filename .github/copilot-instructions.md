@@ -18,34 +18,139 @@ This library maintains the following standards:
 ```
 src/
 ├── index.ts              # Main entry point - exports all modules
+├── clients/              # AWS SDK client abstractions
+│   ├── index.ts          # Re-exports all clients
+│   ├── dynamodb/
+│   │   ├── index.ts      # DynamoDB client implementation
+│   │   └── index.test.ts # DynamoDB client tests
+│   ├── s3/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   ├── sqs/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   ├── lambda/
+│   │   ├── index.ts
+│   │   └── index.test.ts
+│   └── sns/
+│       ├── index.ts
+│       └── index.test.ts
 ├── parsers/              # JSON and data parsing utilities
 │   ├── index.ts
 │   ├── parseJsonBody.ts
 │   └── parseJsonBody.test.ts
 ├── errors/               # Custom error classes and error handling
-│   └── index.ts
+│   ├── index.ts          # Re-exports all errors
+│   ├── http/             # HTTP error classes and status codes
+│   │   ├── HttpError.ts
+│   │   ├── HttpErrors.ts
+│   │   ├── HttpErrors.test.ts
+│   │   ├── HttpStatus.ts
+│   │   ├── HttpStatus.test.ts
+│   │   ├── createHttpError.test.ts
+│   └── handlers/         # Lambda error handlers
+│       ├── handleLambdaError.ts
+│       └── handleLambdaError.test.ts
 ├── extractors/           # Parameter and data extraction utilities
-│   └── index.ts
+│   ├── index.ts
+│   ├── extractEventParams.ts
+│   └── extractEventParams.test.ts
 ├── validators/           # Input validation functions
 │   └── index.ts
-└── transformers/         # Data transformation utilities
-    └── index.ts
+├── transformers/         # Data transformation utilities
+│   └── index.ts
+├── loggers/              # Lambda event logging utilities
+│   ├── index.ts
+│   ├── logLambdaEvent.ts
+│   └── logLambdaEvent.test.ts
+└── decoders/             # Type decoders and validators
+    ├── index.ts
+    ├── decoders.ts
+    └── decoders.test.ts
 ```
+
+## File Organization Rules
+
+**IMPORTANT**: Files are organized in **subfolders by context/feature** to improve project scalability and maintainability:
+
+### For Complex Modules (Multiple Related Files)
+
+When a category has multiple related concepts, organize in subfolders:
+
+```
+src/errors/
+  http/              # HTTP-related errors
+    HttpError.ts
+    HttpStatus.ts
+    HttpErrors.ts
+    *.test.ts
+  handlers/          # Error handlers for different Lambda triggers
+    handleLambdaError.ts
+    handleLambdaError.test.ts
+  index.ts           # Re-exports everything
+```
+
+### For Client/Service Modules
+
+Each client gets its own subfolder with implementation and tests:
+
+```
+src/clients/
+  dynamodb/
+    index.ts         # Implementation
+    index.test.ts    # Tests
+  s3/
+    index.ts
+    index.test.ts
+  index.ts           # Re-exports all clients
+```
+
+### For Simple Utility Modules
+
+Simple utilities can stay flat if they have only one main file:
+
+```
+src/parsers/
+  parseJsonBody.ts
+  parseJsonBody.test.ts
+  index.ts
+```
+
+**Key Benefits:**
+- ✅ Better organization as project grows
+- ✅ Clear separation of concerns
+- ✅ Easier to locate related files
+- ✅ Scalable structure for large projects
+- ✅ Tests co-located with implementation
 
 ## Adding New Features
 
 ### 1. Choose the Right Category
 
+- **clients/**: AWS SDK client abstractions with retry logic
 - **parsers/**: Functions that parse data (JSON, XML, CSV, etc.)
 - **errors/**: Custom error classes and error handling utilities
 - **extractors/**: Functions that extract data from requests, events, etc.
 - **validators/**: Functions that validate inputs and data structures
 - **transformers/**: Functions that transform data between formats
 - **loggers/**: Lambda event logging utilities for tracking and debugging
+- **decoders/**: Type decoders and validators for runtime type checking
 
 ### 2. Create Your Module
 
-Example: Adding a new parser
+#### For Complex Features (Multiple Files)
+
+Create a subfolder with `index.ts` as the main implementation:
+
+```
+src/clients/kinesis/
+  index.ts          # Main implementation
+  index.test.ts     # Tests
+```
+
+#### For Simple Features (Single File)
+
+Keep flat structure in the category folder:
 
 ```typescript
 // src/parsers/parseXml.ts
@@ -90,6 +195,7 @@ export * from './errors';
 export * from './extractors';
 export * from './validators';
 export * from './transformers';
+export * from './clients';
 ```
 
 ## Import Patterns

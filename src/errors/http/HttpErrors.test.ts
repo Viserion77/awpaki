@@ -1,5 +1,5 @@
+import { HttpError } from './HttpError';
 import {
-  HttpError,
   BadRequest,
   Unauthorized,
   Forbidden,
@@ -12,8 +12,8 @@ import {
   NotImplemented,
   BadGateway,
   ServiceUnavailable,
-  HttpStatus,
-} from './index';
+} from './HttpErrors';
+import { HttpStatus } from './HttpStatus';
 
 describe('HttpError', () => {
   describe('HttpError base class', () => {

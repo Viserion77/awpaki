@@ -1,7 +1,7 @@
 {
   "name": "awpaki",
   "version": "1.3.1",
-  "description": "AWS Patterns Kit - A utility library for AWS patterns",
+  "description": "AWS Patterns Kit - TypeScript utility library with AWS SDK clients, Lambda helpers, error handling, and data validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -12,11 +12,22 @@
   },
   "keywords": [
     "aws",
+    "aws-sdk",
+    "lambda",
+    "dynamodb",
+    "s3",
+    "sqs",
+    "sns",
     "patterns",
-    "kit",
     "utilities",
-    "json",
-    "parser"
+    "typescript",
+    "error-handling",
+    "validation",
+    "retry",
+    "parser",
+    "decoder",
+    "api-gateway",
+    "serverless"
   ],
   "author": "",
   "license": "MIT",
@@ -28,6 +39,7 @@
     "node": ">=22.0.0"
   },
   "devDependencies": {
+    "@types/async-retry": "^1.4.9",
     "@types/aws-lambda": "^8.10.159",
     "@types/jest": "^29.5.12",
     "@types/node": "^22.0.0",
@@ -36,9 +48,37 @@
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.948.0",
+    "@aws-sdk/client-lambda": "^3.950.0",
+    "@aws-sdk/client-s3": "^3.948.0",
+    "@aws-sdk/client-sns": "^3.948.0",
+    "@aws-sdk/client-sqs": "^3.948.0",
+    "@aws-sdk/lib-dynamodb": "^3.948.0",
+    "async-retry": "^1.3.3",
     "aws-lambda": "^1.0.7"
   },
   "peerDependenciesMeta": {
+    "@aws-sdk/client-dynamodb": {
+      "optional": true
+    },
+    "@aws-sdk/client-lambda": {
+      "optional": true
+    },
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/client-sns": {
+      "optional": true
+    },
+    "@aws-sdk/client-sqs": {
+      "optional": true
+    },
+    "@aws-sdk/lib-dynamodb": {
+      "optional": true
+    },
+    "async-retry": {
+      "optional": true
+    },
     "aws-lambda": {
       "optional": true
     }
