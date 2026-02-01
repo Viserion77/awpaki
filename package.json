@@ -1,6 +1,6 @@
 {
   "name": "awpaki",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "AWS Patterns Kit - TypeScript utility library with AWS SDK clients, Lambda helpers, error handling, and data validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,13 +36,20 @@
     "url": "https://github.com/Viserion77/awpaki"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.948.0",
+    "@aws-sdk/client-lambda": "^3.950.0",
+    "@aws-sdk/client-s3": "^3.948.0",
+    "@aws-sdk/client-sns": "^3.948.0",
+    "@aws-sdk/client-sqs": "^3.948.0",
+    "@aws-sdk/lib-dynamodb": "^3.948.0",
     "@types/async-retry": "^1.4.9",
     "@types/aws-lambda": "^8.10.159",
     "@types/jest": "^29.5.12",
-    "@types/node": "^22.0.0",
+    "@types/node": "^18.0.0",
+    "async-retry": "^1.3.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
     "typescript": "^5.4.5"

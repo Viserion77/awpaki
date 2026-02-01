@@ -7,6 +7,21 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.2] - 2026-02-01
+
+### Alterado
+- **Node.js mínimo reduzido** - Requisito de Node.js reduzido de 22.0.0 para 18.0.0
+  - Compatível com AWS Lambda Node.js 18 LTS
+  - Sem mudanças no código, apenas especificação de engines
+  - `@types/node` atualizado para ^18.0.0
+
+### Corrigido
+- **DevDependencies** - Adicionados AWS SDK e async-retry como devDependencies
+  - Necessário para execução de testes
+  - Continuam sendo peerDependencies opcionais para usuários
+
+---
+
 ## [1.3.1] - 2025-12-13
 
 ### Alterado

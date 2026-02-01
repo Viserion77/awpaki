@@ -14,7 +14,7 @@ npm install awpaki
 
 ## Requirements
 
-- Node.js >= 22.0.0
+- Node.js >= 18.0.0
 
 ## Environment Variables
 
