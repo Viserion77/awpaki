@@ -71,7 +71,7 @@ No additional configuration is needed when running in AWS Lambda.
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest (237 tests passing)
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (254 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
 - 🗂️ **Modular Architecture**: Organized by feature categories (clients, parsers, errors, extractors, loggers, decoders)
