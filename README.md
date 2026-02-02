@@ -71,7 +71,7 @@ No additional configuration is needed when running in AWS Lambda.
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest (237 tests passing)
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (254 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
 - 🗂️ **Modular Architecture**: Organized by feature categories (clients, parsers, errors, extractors, loggers, decoders)
@@ -401,7 +401,8 @@ Cada tipo de trigger precisa de um error handler específico:
 
 | Error Handler | Event Type | Return Type | Comportamento |
 |---|---|---|---|
-| `handleApiGatewayError(error)` | API Gateway | `APIGatewayProxyResult` | Retorna response HTTP com statusCode |
+| `handleApiGatewayError(error)` | API Gateway V1 (REST API) | `APIGatewayProxyResult` | Retorna response HTTP com statusCode |
+| `handleApiGatewayErrorV2(error, cookies?)` | **API Gateway V2 (HTTP API)** | `APIGatewayProxyResultV2` | **Retorna response V2 com suporte a cookies** |
 | `handleAppSyncError(error)` | AppSync | `never` | Loga e re-lança erro (GraphQL formata) |
 | `handleSqsError(error)` | SQS | `void` | Re-lança erro para retry/DLQ |
 | `handleSnsError(error)` | SNS | `void` | Re-lança erro para retry/DLQ |
@@ -412,17 +413,41 @@ Cada tipo de trigger precisa de um error handler específico:
 
 **Diferenças:**
 
-- **API Gateway**: Converte `HttpError` em response HTTP formatado. Não re-lança.
+- **API Gateway V1**: Converte `HttpError` em response HTTP formatado. Não re-lança.
+- **API Gateway V2**: Igual ao V1, mas suporta cookies e formato de resposta V2 (HTTP API).
 - **AppSync**: Loga detalhes do erro e sempre re-lança para GraphQL formatar no array `errors`.
 - **Outros triggers**: Re-lançam erros não-HTTP para acionar retry/DLQ do AWS Lambda.
 
 **Uso:**
 ```typescript
 import { 
+  handleApiGatewayErrorV2, // NEW: For V2 (HTTP API)
   handleSqsError, 
   handleDynamoDBStreamError,
-  BadRequest 
+  BadRequest,
+  Unauthorized 
 } from 'awpaki';
+import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+
+// API Gateway V2 Handler (HTTP API) with cookies support
+export const apiV2Handler: APIGatewayProxyHandlerV2 = async (event, context) => {
+  try {
+    // Your business logic
+    const user = await authenticateUser(event.headers.authorization);
+    
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ user }),
+      cookies: [`session=${user.sessionId}; HttpOnly; Secure`]
+    };
+  } catch (error) {
+    // Clear cookies on error if needed
+    const cookies = error instanceof Unauthorized 
+      ? ['session=; Max-Age=0'] 
+      : undefined;
+    return handleApiGatewayErrorV2(error, cookies);
+  }
+};
 
 // SQS Handler
 export const sqsHandler: SQSHandler = async (event, context) => {
@@ -674,7 +699,8 @@ AWS Lambda automatically filters logs based on your configuration. No environmen
 
 ```typescript
 import { 
-  logApiGatewayEvent, 
+  logApiGatewayEvent,
+  logApiGatewayEventV2, // NEW: For API Gateway V2 (HTTP API)
   logSqsEvent, 
   logSnsEvent, 
   logEventBridgeEvent,
@@ -683,6 +709,7 @@ import {
 } from 'awpaki';
 import { 
   APIGatewayProxyHandler,
+  APIGatewayProxyHandlerV2, // NEW: For V2
   SQSHandler,
   SNSHandler,
   EventBridgeHandler,
@@ -690,10 +717,17 @@ import {
   DynamoDBStreamHandler
 } from 'aws-lambda';
 
-// API Gateway - Logs request metadata + headers (debug)
+// API Gateway V1 (REST API) - Logs request metadata + headers (debug)
 export const apiHandler: APIGatewayProxyHandler = async (event, context) => {
   logApiGatewayEvent(event, context);
   // Info: { httpMethod, path, stage, sourceIp, requestId }
+  // Debug: Full headers object
+};
+
+// API Gateway V2 (HTTP API with Payload Format 2.0) - NEW!
+export const apiHandlerV2: APIGatewayProxyHandlerV2 = async (event, context) => {
+  logApiGatewayEventV2(event, context);
+  // Info: { httpMethod, path, routeKey, stage, sourceIp, cookies, requestId }
   // Debug: Full headers object
 };
 

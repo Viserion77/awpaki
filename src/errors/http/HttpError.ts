@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 /**
  * Base class for HTTP errors with AWS Lambda integration
@@ -91,6 +91,58 @@ export class HttpError extends Error {
         ...this.headers,
         ...additionalHeaders,
       },
+    };
+  }
+
+  /**
+   * Returns an AWS API Gateway V2 (HTTP API) response object
+   * Useful for returning errors in API Gateway V2 Lambda functions with Payload Format 2.0
+   * Supports cookies in addition to standard headers
+   * 
+   * @param additionalHeaders - Optional additional headers to include
+   * @param cookies - Optional cookies to set
+   * @returns API Gateway V2 response format
+   * 
+   * @example
+   * ```typescript
+   * try {
+   *   // your code
+   * } catch (error) {
+   *   if (error instanceof HttpError) {
+   *     return error.toApiGatewayResponseV2(undefined, ['session=; Max-Age=0']);
+   *   }
+   *   throw error;
+   * }
+   * ```
+   */
+  public toApiGatewayResponseV2(
+    additionalHeaders?: Record<string, string | boolean | number>,
+    cookies?: string[]
+  ): APIGatewayProxyStructuredResultV2 {
+    const responseBody: any = { message: this.message };
+    
+    if (this.data) {
+      responseBody.data = this.data;
+    }
+
+    // Include Lambda metadata if available
+    if (this.lambdaMetadata.logStreamName || this.lambdaMetadata.executionEnv || this.lambdaMetadata.functionName) {
+      responseBody['$x-custom-metadata'] = {
+        ...(this.lambdaMetadata.logStreamName && { logStreamName: this.lambdaMetadata.logStreamName }),
+        ...(this.lambdaMetadata.executionEnv && { executionEnv: this.lambdaMetadata.executionEnv }),
+        ...(this.lambdaMetadata.functionName && { functionName: this.lambdaMetadata.functionName }),
+      };
+    }
+
+    return {
+      statusCode: this.statusCode,
+      body: JSON.stringify(responseBody),
+      headers: {
+        'Content-Type': 'application/json',
+        ...this.headers,
+        ...additionalHeaders,
+      },
+      ...(cookies && cookies.length > 0 && { cookies }),
     };
   }
 

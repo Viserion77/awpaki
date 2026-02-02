@@ -1,5 +1,6 @@
 import { 
-  APIGatewayProxyEvent, 
+  APIGatewayProxyEvent,
+  APIGatewayProxyEventV2,
   SQSEvent, 
   SNSEvent, 
   EventBridgeEvent,
@@ -10,6 +11,7 @@ import {
 } from 'aws-lambda';
 import {
   logApiGatewayEvent,
+  logApiGatewayEventV2,
   logSqsEvent,
   logSnsEvent,
   logEventBridgeEvent,
@@ -100,6 +102,41 @@ const createMockApiGatewayEvent = (): APIGatewayProxyEvent => ({
     },
   },
   resource: '/users/{id}',
+});
+
+const createMockApiGatewayEventV2 = (): APIGatewayProxyEventV2 => ({
+  version: '2.0',
+  routeKey: 'GET /users/{id}',
+  rawPath: '/users/123',
+  rawQueryString: 'page=1&limit=10',
+  cookies: ['session=abc123'],
+  headers: {
+    'user-agent': 'Mozilla/5.0',
+    'x-forwarded-for': '192.168.1.1',
+  },
+  queryStringParameters: { page: '1', limit: '10' },
+  requestContext: {
+    accountId: '123456789012',
+    apiId: 'test-api-id-v2',
+    domainName: 'api.example.com',
+    domainPrefix: 'api',
+    http: {
+      method: 'GET',
+      path: '/users/123',
+      protocol: 'HTTP/1.1',
+      sourceIp: '192.168.1.1',
+      userAgent: 'Mozilla/5.0',
+    },
+    requestId: 'api-request-id-v2',
+    routeKey: 'GET /users/{id}',
+    stage: 'prod',
+    time: '08/Dec/2025:10:00:00 +0000',
+    timeEpoch: 1702000000000,
+  },
+  body: undefined,
+  pathParameters: { id: '123' },
+  isBase64Encoded: false,
+  stageVariables: undefined,
 });
 
 const createMockSqsEvent = (): SQSEvent => ({
@@ -202,6 +239,64 @@ describe('logApiGatewayEvent', () => {
 
     const [, logData] = consoleInfoOutput[0];
     expect(logData.customField).toBe('customValue');
+  });
+});
+
+describe('logApiGatewayEventV2', () => {
+  it('should log API Gateway V2 event info', () => {
+    const event = createMockApiGatewayEventV2();
+    const context = createMockContext();
+
+    logApiGatewayEventV2(event, context);
+
+    expect(consoleInfoOutput).toHaveLength(1);
+    const [message, logData] = consoleInfoOutput[0];
+    expect(message).toBe('Entry API Gateway V2 test-function:api-request-id-v2');
+    expect(logData.requestId).toBe('test-request-id-123');
+    expect(logData.httpMethod).toBe('GET');
+    expect(logData.path).toBe('/users/123');
+    expect(logData.routeKey).toBe('GET /users/{id}');
+    expect(logData.stage).toBe('prod');
+    expect(logData.sourceIp).toBe('192.168.1.1');
+    expect(logData.userAgent).toBe('Mozilla/5.0');
+    expect(logData.requestTimeEpoch).toBe(1702000000000);
+    expect(logData.cookies).toEqual(['session=abc123']);
+  });
+
+  it('should log all headers in debug output', () => {
+    const event = createMockApiGatewayEventV2();
+    const context = createMockContext();
+
+    logApiGatewayEventV2(event, context);
+
+    expect(consoleDebugOutput).toHaveLength(1);
+    const [message, headers] = consoleDebugOutput[0];
+    expect(message).toBe('API Gateway V2 Headers test-function:api-request-id-v2');
+    expect(headers).toHaveProperty('user-agent');
+    expect(headers).toHaveProperty('x-forwarded-for');
+  });
+
+  it('should include additional data when provided', () => {
+    const event = createMockApiGatewayEventV2();
+    const context = createMockContext();
+
+    logApiGatewayEventV2(event, context, {
+      additionalData: { customField: 'customValue' },
+    });
+
+    const [, logData] = consoleInfoOutput[0];
+    expect(logData.customField).toBe('customValue');
+  });
+
+  it('should handle missing cookies', () => {
+    const event = createMockApiGatewayEventV2();
+    event.cookies = undefined;
+    const context = createMockContext();
+
+    logApiGatewayEventV2(event, context);
+
+    const [, logData] = consoleInfoOutput[0];
+    expect(logData.cookies).toBeUndefined();
   });
 });
 

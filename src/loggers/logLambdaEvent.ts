@@ -1,5 +1,6 @@
 import { 
-  APIGatewayProxyEvent, 
+  APIGatewayProxyEvent,
+  APIGatewayProxyEventV2,
   SQSEvent, 
   SNSEvent, 
   EventBridgeEvent,
@@ -60,6 +61,55 @@ export function logApiGatewayEvent(
   
   // Log headers in debug level
   console.debug(`API Gateway Headers ${identifier}`, event.headers);
+}
+
+/**
+ * Logs API Gateway V2 event information for tracking and debugging
+ * 
+ * Used for HTTP API (Payload Format 2.0) which has a different structure than V1.
+ * In V2, properties like sourceIp and userAgent are in requestContext.http instead of requestContext.identity.
+ * 
+ * @param event - API Gateway proxy event V2
+ * @param context - Lambda context
+ * @param config - Optional logging configuration
+ * 
+ * @example
+ * ```typescript
+ * export const handler = async (event: APIGatewayProxyEventV2, context: Context) => {
+ *   logApiGatewayEventV2(event, context);
+ *   // ... rest of handler
+ * };
+ * ```
+ */
+export function logApiGatewayEventV2(
+  event: APIGatewayProxyEventV2,
+  context: Context,
+  config?: LogConfig
+): void {
+  const identifier = `${context.functionName}:${event.requestContext.requestId}`;
+  
+  const logData = {
+    requestId: context.awsRequestId,
+    functionName: context.functionName,
+    functionVersion: context.functionVersion,
+    httpMethod: event.requestContext.http.method,
+    path: event.requestContext.http.path,
+    routeKey: event.routeKey,
+    stage: event.requestContext.stage,
+    sourceIp: event.requestContext.http.sourceIp,
+    userAgent: event.requestContext.http.userAgent,
+    apiId: event.requestContext.apiId,
+    requestTimeEpoch: event.requestContext.timeEpoch,
+    queryStringParameters: event.queryStringParameters,
+    pathParameters: event.pathParameters,
+    cookies: event.cookies,
+    ...(config?.additionalData || {}),
+  };
+
+  console.info(`Entry API Gateway V2 ${identifier}`, logData);
+  
+  // Log headers in debug level
+  console.debug(`API Gateway V2 Headers ${identifier}`, event.headers);
 }
 
 /**

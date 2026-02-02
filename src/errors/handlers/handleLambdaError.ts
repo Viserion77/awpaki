@@ -1,4 +1,4 @@
-import { APIGatewayProxyResult } from 'aws-lambda';
+import { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { HttpError } from '../http/HttpError';
 
 /**
@@ -8,6 +8,16 @@ export interface ApiGatewayErrorResponse {
   statusCode: number;
   headers: Record<string, string>;
   body: string;
+}
+
+/**
+ * API Gateway V2 error response format
+ */
+export interface ApiGatewayErrorResponseV2 {
+  statusCode: number;
+  headers: Record<string, string | boolean | number>;
+  body: string;
+  cookies?: string[];
 }
 
 /**
@@ -61,6 +71,52 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
   }
   
   console.error('API Gateway Unknown Error:', error);
+  throw error;
+}
+
+/**
+ * Handles errors in API Gateway V2 (HTTP API) Lambda functions
+ * 
+ * If error is HttpError: returns formatted API Gateway V2 response
+ * Otherwise: re-throws the error
+ * 
+ * @param error - The error that occurred
+ * @param cookies - Optional cookies to set in the response
+ * @returns API Gateway V2 response format
+ * @throws Re-throws error if not HttpError
+ * 
+ * @example
+ * ```typescript
+ * export const handler = async (event: APIGatewayProxyEventV2, context: Context) => {
+ *   logApiGatewayEventV2(event, context);
+ *   try {
+ *     const params = extractEventParams(schema, event);
+ *     // ... your code
+ *     return { statusCode: 200, body: JSON.stringify({ success: true }) };
+ *   } catch (error) {
+ *     return handleApiGatewayErrorV2(error);
+ *   }
+ * };
+ * ```
+ */
+export function handleApiGatewayErrorV2(error: unknown, cookies?: string[]): ApiGatewayErrorResponseV2 | never {
+  if (error instanceof HttpError) {
+    console.error('API Gateway V2 HttpError:', {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+      data: error.data,
+    });
+    const response = error.toApiGatewayResponseV2(undefined, cookies);
+    return {
+      statusCode: response.statusCode!,
+      headers: response.headers!,
+      body: response.body!,
+      ...(response.cookies && { cookies: response.cookies }),
+    };
+  }
+  
+  console.error('API Gateway V2 Unknown Error:', error);
   throw error;
 }
 

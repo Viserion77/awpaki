@@ -7,6 +7,62 @@ e este projeto segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.4.0] - 2026-02-02
+
+### Adicionado
+- **Suporte API Gateway V2** - Novas funções para API Gateway V2 (HTTP API com Payload Format 2.0)
+  - `logApiGatewayEventV2(event, context)` - Logger para eventos API Gateway V2
+    - Suporta estrutura V2: `requestContext.http.method`, `http.sourceIp`, `http.userAgent`
+    - Info: { httpMethod, path, routeKey, stage, sourceIp, cookies, requestId }
+    - Debug: Headers completos
+  - `handleApiGatewayErrorV2(error, cookies?)` - Error handler para V2 Lambda functions
+    - Retorna `APIGatewayProxyStructuredResultV2` com suporte a cookies
+    - Aceita parâmetro opcional `cookies` para limpar/definir cookies em erros
+  - `HttpError.toApiGatewayResponseV2(headers?, cookies?)` - Método para resposta V2
+    - Suporte a cookies (campo específico do V2)
+    - Compatível com formato V2 (`APIGatewayProxyStructuredResultV2`)
+
+### Diferenças V1 vs V2
+- **V1 (REST API)**: `event.requestContext.identity.sourceIp`, `event.httpMethod`, `event.path`
+- **V2 (HTTP API)**: `event.requestContext.http.sourceIp`, `event.requestContext.http.method`, `event.requestContext.http.path`
+- **V2 adiciona**: `routeKey`, `cookies`, formato de resposta simplificado
+
+### Exemplo de Uso
+```typescript
+import { 
+  logApiGatewayEventV2, 
+  handleApiGatewayErrorV2,
+  Unauthorized 
+} from 'awpaki';
+import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
+
+export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {
+  logApiGatewayEventV2(event, context);
+  
+  try {
+    const user = await authenticateUser(event.headers.authorization);
+    return {
+      statusCode: 200,
+      body: JSON.stringify({ user }),
+      cookies: [`session=${user.sessionId}; HttpOnly; Secure`]
+    };
+  } catch (error) {
+    // Limpa cookies em erro de autenticação
+    const cookies = error instanceof Unauthorized 
+      ? ['session=; Max-Age=0'] 
+      : undefined;
+    return handleApiGatewayErrorV2(error, cookies);
+  }
+};
+```
+
+### Migração
+- Funções V1 (`logApiGatewayEvent`, `handleApiGatewayError`, `toApiGatewayResponse`) continuam funcionando
+- Use funções V2 apenas se estiver usando API Gateway HTTP API (Payload Format 2.0)
+- Sem breaking changes - totalmente compatível com código existente
+
+---
+
 ## [1.3.2] - 2026-02-01
 
 ### Alterado

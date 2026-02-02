@@ -1,5 +1,6 @@
 export {
   logApiGatewayEvent,
+  logApiGatewayEventV2,
   logSqsEvent,
   logSnsEvent,
   logEventBridgeEvent,

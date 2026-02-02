@@ -105,6 +105,67 @@ describe('HttpError', () => {
       const body = JSON.parse(response.body);
       expect(body['$x-custom-metadata']).toBeUndefined();
     });
+
+    it('should generate Lambda V2 response', () => {
+      const error = new HttpError('Test error', HttpStatus.BAD_REQUEST);
+      const response = error.toApiGatewayResponseV2();
+      
+      expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.body).toBe(JSON.stringify({ message: 'Test error' }));
+      expect(response.headers).toHaveProperty('Content-Type', 'application/json');
+    });
+
+    it('should include cookies in Lambda V2 response', () => {
+      const error = new HttpError('Test error', HttpStatus.UNAUTHORIZED);
+      const cookies = ['session=; Max-Age=0', 'token=; Max-Age=0'];
+      const response = error.toApiGatewayResponseV2(undefined, cookies);
+      
+      expect(response.cookies).toEqual(cookies);
+    });
+
+    it('should not include cookies in Lambda V2 response when not provided', () => {
+      const error = new HttpError('Test error', HttpStatus.BAD_REQUEST);
+      const response = error.toApiGatewayResponseV2();
+      
+      expect(response.cookies).toBeUndefined();
+    });
+
+    it('should include data in Lambda V2 response', () => {
+      const data = { field: 'email' };
+      const error = new HttpError('Test error', HttpStatus.BAD_REQUEST, data);
+      const response = error.toApiGatewayResponseV2();
+      
+      const body = JSON.parse(response.body!);
+      expect(body.data).toEqual(data);
+    });
+
+    it('should merge headers in Lambda V2 response', () => {
+      const error = new HttpError('Error', HttpStatus.BAD_REQUEST, undefined, { 'X-Custom': 'value' });
+      const response = error.toApiGatewayResponseV2({ 'X-Extra': 'extra' });
+      
+      expect(response.headers).toHaveProperty('X-Custom', 'value');
+      expect(response.headers).toHaveProperty('X-Extra', 'extra');
+    });
+
+    it('should include Lambda metadata in API Gateway V2 response when available', () => {
+      process.env.AWS_LAMBDA_LOG_STREAM_NAME = '2024/12/08/[$LATEST]abc123';
+      process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+
+      const error = new HttpError('Error with metadata', HttpStatus.INTERNAL_SERVER_ERROR);
+      const response = error.toApiGatewayResponseV2();
+      
+      const body = JSON.parse(response.body!);
+      expect(body['$x-custom-metadata']).toBeDefined();
+      expect(body['$x-custom-metadata'].logStreamName).toBe('2024/12/08/[$LATEST]abc123');
+      expect(body['$x-custom-metadata'].executionEnv).toBe('AWS_Lambda_nodejs20.x');
+      expect(body['$x-custom-metadata'].functionName).toBe('my-test-function');
+
+      // Cleanup
+      delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
+      delete process.env.AWS_EXECUTION_ENV;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
   });
 
   describe('BadRequest', () => {
