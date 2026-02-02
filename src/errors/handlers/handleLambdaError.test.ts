@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import {
   handleApiGatewayError,
+  handleApiGatewayErrorV2,
   handleSqsError,
   handleSnsError,
   handleEventBridgeError,
@@ -52,6 +53,63 @@ describe('Error Handlers', () => {
 
     it('should re-throw string errors', () => {
       expect(() => handleApiGatewayError('string error')).toThrow('string error');
+    });
+  });
+
+  describe('handleApiGatewayErrorV2', () => {
+    it('should return API Gateway V2 response for HttpError', () => {
+      const error = new BadRequest('Invalid request');
+      const response = handleApiGatewayErrorV2(error);
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(response.headers).toEqual({ 'Content-Type': 'application/json' });
+      expect(JSON.parse(response.body)).toEqual({
+        message: 'Invalid request',
+      });
+    });
+
+    it('should include data in response', () => {
+      const error = new NotFound('User not found', { userId: '123' });
+      const response = handleApiGatewayErrorV2(error);
+
+      expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
+      const body = JSON.parse(response.body);
+      expect(body.message).toBe('User not found');
+      expect(body.data).toEqual({ userId: '123' });
+    });
+
+    it('should include custom headers', () => {
+      const error = new HttpError('Forbidden', HttpStatus.FORBIDDEN, undefined, {
+        'X-Custom-Header': 'value',
+      });
+      const response = handleApiGatewayErrorV2(error);
+
+      expect(response.statusCode).toBe(HttpStatus.FORBIDDEN);
+      expect(response.headers['X-Custom-Header']).toBe('value');
+    });
+
+    it('should include cookies when provided', () => {
+      const error = new BadRequest('Invalid request');
+      const cookies = ['session=; Max-Age=0'];
+      const response = handleApiGatewayErrorV2(error, cookies);
+
+      expect(response.cookies).toEqual(cookies);
+    });
+
+    it('should not include cookies when not provided', () => {
+      const error = new BadRequest('Invalid request');
+      const response = handleApiGatewayErrorV2(error);
+
+      expect(response.cookies).toBeUndefined();
+    });
+
+    it('should re-throw non-HttpError', () => {
+      const error = new Error('Standard error');
+      expect(() => handleApiGatewayErrorV2(error)).toThrow('Standard error');
+    });
+
+    it('should re-throw string errors', () => {
+      expect(() => handleApiGatewayErrorV2('string error')).toThrow('string error');
     });
   });
 

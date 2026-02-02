@@ -25,6 +25,7 @@ export {
 } from './http/HttpStatus';
 export {
   handleApiGatewayError,
+  handleApiGatewayErrorV2,
   handleGenericError,
   handleSqsError,
   handleSnsError,
@@ -33,5 +34,6 @@ export {
   handleDynamoDBStreamError,
   handleAppSyncError,
   type ApiGatewayErrorResponse,
+  type ApiGatewayErrorResponseV2,
   type GenericLambdaErrorResponse,
 } from './handlers/handleLambdaError';
