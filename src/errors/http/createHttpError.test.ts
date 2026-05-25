@@ -130,15 +130,20 @@ describe('createHttpError', () => {
     it('should pass data object to error', () => {
       const data = { field: 'email', value: 'invalid' };
       const error = createHttpError(HttpStatus.BAD_REQUEST, 'Invalid email', data);
-      
+
       expect(error.data).toEqual(data);
       expect(error.statusCode).toBe(HttpStatus.BAD_REQUEST);
     });
 
     it('should pass headers to error', () => {
       const headers = { 'X-Custom': 'value', 'Retry-After': 120 };
-      const error = createHttpError(HttpStatus.TOO_MANY_REQUESTS, 'Rate limited', undefined, headers);
-      
+      const error = createHttpError(
+        HttpStatus.TOO_MANY_REQUESTS,
+        'Rate limited',
+        undefined,
+        headers
+      );
+
       expect(error.headers).toEqual(headers);
       expect(error.statusCode).toBe(HttpStatus.TOO_MANY_REQUESTS);
     });
@@ -146,8 +151,13 @@ describe('createHttpError', () => {
     it('should pass both data and headers', () => {
       const data = { errors: { name: 'required' } };
       const headers = { 'X-Request-Id': 'abc123' };
-      const error = createHttpError(HttpStatus.UNPROCESSABLE_ENTITY, 'Validation failed', data, headers);
-      
+      const error = createHttpError(
+        HttpStatus.UNPROCESSABLE_ENTITY,
+        'Validation failed',
+        data,
+        headers
+      );
+
       expect(error.data).toEqual(data);
       expect(error.headers).toEqual(headers);
     });
@@ -156,7 +166,7 @@ describe('createHttpError', () => {
   describe('unmapped status codes', () => {
     it('should fallback to NotImplemented for 999', () => {
       const error = createHttpError(999, 'Unknown error');
-      
+
       expect(error).toBeInstanceOf(NotImplemented);
       expect(error.statusCode).toBe(HttpStatus.NOT_IMPLEMENTED);
       expect(error.message).toBe('Unknown error');
@@ -164,14 +174,14 @@ describe('createHttpError', () => {
 
     it('should fallback to NotImplemented for 201', () => {
       const error = createHttpError(201, 'This is not an error status');
-      
+
       expect(error).toBeInstanceOf(NotImplemented);
       expect(error.statusCode).toBe(HttpStatus.NOT_IMPLEMENTED);
     });
 
     it('should fallback to NotImplemented for 0', () => {
       const error = createHttpError(0, 'Invalid status');
-      
+
       expect(error).toBeInstanceOf(NotImplemented);
       expect(error.statusCode).toBe(HttpStatus.NOT_IMPLEMENTED);
     });
@@ -181,10 +191,10 @@ describe('createHttpError', () => {
     it('should generate proper Lambda response', () => {
       const error = createHttpError(HttpStatus.NOT_FOUND, 'User not found', { userId: 123 });
       const response = error.toApiGatewayResponse();
-      
+
       expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
       expect(response.body).toContain('User not found');
-      
+
       const body = JSON.parse(response.body);
       expect(body.message).toBe('User not found');
       expect(body.data).toEqual({ userId: 123 });
@@ -194,7 +204,7 @@ describe('createHttpError', () => {
       const headers = { 'X-Custom': 'value' };
       const error = createHttpError(HttpStatus.UNAUTHORIZED, 'Token expired', undefined, headers);
       const response = error.toApiGatewayResponse();
-      
+
       expect(response.headers).toMatchObject(headers);
     });
   });

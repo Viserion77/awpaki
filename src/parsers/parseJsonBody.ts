@@ -2,26 +2,26 @@ import { BadRequest } from '../errors';
 
 /**
  * Parses a JSON stringified body and returns the parsed object.
- * 
+ *
  * @template T - The expected type of the parsed object
  * @param {string | null | undefined} body - The stringified JSON body to parse
  * @param {ParseJsonBodyOptions<T>} options - Optional configuration
  * @returns {T} The parsed object of type T
  * @throws {BadRequest} When the body is not a valid JSON string or is empty (unless defaultValue is provided)
- * 
+ *
  * @example
  * ```typescript
  * interface User {
  *   name: string;
  *   age: number;
  * }
- * 
+ *
  * const jsonString = '{"name": "John Doe", "age": 30}';
  * const user = parseJsonBody<User>(jsonString);
  * console.log(user.name); // "John Doe"
  * console.log(user.age);  // 30
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Parse an array
@@ -29,14 +29,14 @@ import { BadRequest } from '../errors';
  * const numbers = parseJsonBody<number[]>(arrayString);
  * console.log(numbers); // [1, 2, 3, 4, 5]
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Handle null/undefined with default value (makes body optional)
  * const result = parseJsonBody<object>(null, { defaultValue: {} });
  * console.log(result); // {}
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // By default, empty body throws error
@@ -46,7 +46,7 @@ import { BadRequest } from '../errors';
  *   console.error('Body is required by default');
  * }
  * ```
- * 
+ *
  * @example
  * ```typescript
  * // Handle errors with HTTP status

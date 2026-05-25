@@ -7,7 +7,7 @@ export { HttpErrorStatus, HttpStatus };
 /**
  * 400 Bad Request
  * Used when the request is malformed or contains invalid data
- * 
+ *
  * @example
  * ```typescript
  * throw new BadRequest('Invalid JSON format');
@@ -27,7 +27,7 @@ export class BadRequest extends HttpError {
 /**
  * 401 Unauthorized
  * Used when authentication is required but not provided or invalid
- * 
+ *
  * @example
  * ```typescript
  * throw new Unauthorized('Invalid credentials');
@@ -47,7 +47,7 @@ export class Unauthorized extends HttpError {
 /**
  * 403 Forbidden
  * Used when the user is authenticated but doesn't have permission
- * 
+ *
  * @example
  * ```typescript
  * throw new Forbidden('Access denied');
@@ -67,7 +67,7 @@ export class Forbidden extends HttpError {
 /**
  * 404 Not Found
  * Used when a resource cannot be found
- * 
+ *
  * @example
  * ```typescript
  * throw new NotFound('User not found');
@@ -87,7 +87,7 @@ export class NotFound extends HttpError {
 /**
  * 409 Conflict
  * Used when the request conflicts with the current state
- * 
+ *
  * @example
  * ```typescript
  * throw new Conflict('Email already exists');
@@ -107,7 +107,7 @@ export class Conflict extends HttpError {
 /**
  * 412 Precondition Failed
  * Used when a precondition given in the request evaluated to false
- * 
+ *
  * @example
  * ```typescript
  * throw new PreconditionFailed('ETag mismatch');
@@ -126,7 +126,7 @@ export class PreconditionFailed extends HttpError {
 /**
  * 422 Unprocessable Entity
  * Used for validation errors
- * 
+ *
  * @example
  * ```typescript
  * throw new UnprocessableEntity('Validation failed');
@@ -146,7 +146,7 @@ export class UnprocessableEntity extends HttpError {
 /**
  * 429 Too Many Requests
  * Used when rate limiting is applied
- * 
+ *
  * @example
  * ```typescript
  * throw new TooManyRequests('Rate limit exceeded');
@@ -165,7 +165,7 @@ export class TooManyRequests extends HttpError {
 /**
  * 500 Internal Server Error
  * Used for unexpected server errors
- * 
+ *
  * @example
  * ```typescript
  * throw new InternalServerError('Database connection failed');
@@ -185,7 +185,7 @@ export class InternalServerError extends HttpError {
 /**
  * 501 Not Implemented
  * Used when the server does not support the functionality required to fulfill the request
- * 
+ *
  * @example
  * ```typescript
  * throw new NotImplemented('This feature is not yet implemented');
@@ -205,7 +205,7 @@ export class NotImplemented extends HttpError {
 /**
  * 502 Bad Gateway
  * Used when an integration/external service fails
- * 
+ *
  * @example
  * ```typescript
  * throw new BadGateway('Payment processing failed', { integration: 'Stripe API' });
@@ -225,7 +225,7 @@ export class BadGateway extends HttpError {
 /**
  * 503 Service Unavailable
  * Used when the service is temporarily unavailable
- * 
+ *
  * @example
  * ```typescript
  * throw new ServiceUnavailable('Service under maintenance');
@@ -263,18 +263,18 @@ export const HTTP_ERROR_MAP: Record<number, any> = {
 /**
  * Creates an HTTP error instance based on status code
  * Falls back to NotImplemented (501) for unmapped status codes
- * 
+ *
  * @param statusCode - HTTP status code
  * @param message - Error message
  * @param data - Additional error data
  * @param headers - Response headers
  * @returns Instance of the appropriate HttpError subclass
- * 
+ *
  * @example
  * ```typescript
  * const error = createHttpError(404, 'User not found');
  * // Returns: NotFound instance
- * 
+ *
  * const error = createHttpError(999, 'Custom error');
  * // Returns: NotImplemented (501) instance
  * ```
@@ -286,12 +286,11 @@ export function createHttpError(
   headers?: Record<string, string | boolean | number>
 ): HttpError {
   const ErrorClass = HTTP_ERROR_MAP[statusCode];
-  
+
   // If status code not mapped, use NotImplemented (501)
   if (!ErrorClass) {
     return new NotImplemented(message || 'Not Implemented', data, headers);
   }
-  
+
   return new ErrorClass(message, data, headers);
 }
-

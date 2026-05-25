@@ -24,8 +24,6 @@ describe('lambdaClient', () => {
       Payload: JSON.stringify({ key: 'value' }),
     });
 
-    await expect(
-      lambdaClient.execute(command, { retries: 0, minTimeout: 500 })
-    ).rejects.toThrow();
+    await expect(lambdaClient.execute(command, { retries: 0, minTimeout: 500 })).rejects.toThrow();
   });
 });

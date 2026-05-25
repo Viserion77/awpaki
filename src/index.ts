@@ -19,8 +19,5 @@ export * from './loggers';
 // Export all decoders
 export * from './decoders';
 
-// Export all AWS clients
-export * from './clients';
-
-// Export all clients
-export * from './clients';
+// AWS clients live under the awpaki/clients subpath so optional peer
+// dependencies are loaded only by applications that import those clients.

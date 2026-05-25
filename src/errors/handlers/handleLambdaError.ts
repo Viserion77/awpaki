@@ -1,4 +1,3 @@
-import { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import { HttpError } from '../http/HttpError';
 
 /**
@@ -32,14 +31,14 @@ export interface GenericLambdaErrorResponse {
 
 /**
  * Handles errors in API Gateway Lambda functions
- * 
+ *
  * If error is HttpError: returns formatted API Gateway response
  * Otherwise: re-throws the error
- * 
+ *
  * @param error - The error that occurred
  * @returns API Gateway response format
  * @throws Re-throws error if not HttpError
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: APIGatewayProxyEvent, context: Context) => {
@@ -69,22 +68,22 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
       body: response.body,
     };
   }
-  
+
   console.error('API Gateway Unknown Error:', error);
   throw error;
 }
 
 /**
  * Handles errors in API Gateway V2 (HTTP API) Lambda functions
- * 
+ *
  * If error is HttpError: returns formatted API Gateway V2 response
  * Otherwise: re-throws the error
- * 
+ *
  * @param error - The error that occurred
  * @param cookies - Optional cookies to set in the response
  * @returns API Gateway V2 response format
  * @throws Re-throws error if not HttpError
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: APIGatewayProxyEventV2, context: Context) => {
@@ -99,7 +98,10 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
  * };
  * ```
  */
-export function handleApiGatewayErrorV2(error: unknown, cookies?: string[]): ApiGatewayErrorResponseV2 | never {
+export function handleApiGatewayErrorV2(
+  error: unknown,
+  cookies?: string[]
+): ApiGatewayErrorResponseV2 | never {
   if (error instanceof HttpError) {
     console.error('API Gateway V2 HttpError:', {
       name: error.name,
@@ -115,23 +117,23 @@ export function handleApiGatewayErrorV2(error: unknown, cookies?: string[]): Api
       ...(response.cookies && { cookies: response.cookies }),
     };
   }
-  
+
   console.error('API Gateway V2 Unknown Error:', error);
   throw error;
 }
 
 /**
  * Generic error handler for non-HTTP Lambda triggers
- * 
+ *
  * If error is HttpError: returns structured error response
  * Otherwise: re-throws the error (allows Lambda retry logic)
- * 
+ *
  * Use this for SQS, SNS, EventBridge, S3, DynamoDB Streams, and other non-HTTP triggers
- * 
+ *
  * @param error - The error that occurred
  * @returns Generic error response format
  * @throws Re-throws error if not HttpError (for retry logic)
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: SQSEvent, context: Context) => {
@@ -154,7 +156,7 @@ export function handleGenericError(error: unknown): GenericLambdaErrorResponse |
     });
     return error.toGenericResponse();
   }
-  
+
   console.error('Lambda Unknown Error:', error);
   throw error;
 }
@@ -191,15 +193,15 @@ export const handleDynamoDBStreamError = handleGenericError;
 
 /**
  * Handles errors in AppSync resolver Lambda functions
- * 
+ *
  * AppSync expects errors to be thrown, not returned. This handler
  * logs the error and always re-throws it so AppSync can format it
  * properly in the GraphQL errors array.
- * 
+ *
  * @param error - The error that occurred
  * @returns Never returns - always throws
  * @throws Always re-throws the error for AppSync to handle
- * 
+ *
  * @example
  * ```typescript
  * export const resolver: AppSyncResolverHandler<Args, Result> = async (event, context) => {
@@ -223,7 +225,7 @@ export function handleAppSyncError(error: unknown): never {
       data: error.data,
     });
   }
-  
+
   // AppSync always expects errors to be thrown
   // It will format them in the GraphQL errors array
   throw error;

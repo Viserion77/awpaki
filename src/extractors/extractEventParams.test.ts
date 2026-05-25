@@ -85,12 +85,14 @@ describe('extractEventParams', () => {
       expect(() => {
         extractEventParams(schema, event);
       }).toThrow(UnprocessableEntity);
-      
+
       try {
         extractEventParams(schema, event);
       } catch (error) {
         if (error instanceof UnprocessableEntity) {
-          expect(error.data?.errors).toEqual({ 'pathParameters.id': [HttpStatus.UNPROCESSABLE_ENTITY, 'ID is required'] });
+          expect(error.data?.errors).toEqual({
+            'pathParameters.id': [HttpStatus.UNPROCESSABLE_ENTITY, 'ID is required'],
+          });
         }
       }
     });
@@ -596,12 +598,12 @@ describe('extractEventParams', () => {
         } as any,
       });
 
-      const result = extractEventParams<{ 
-        sub: string; 
-        email: string; 
+      const result = extractEventParams<{
+        sub: string;
+        email: string;
         'custom:role': string;
       }>(schema, event);
-      
+
       expect(result.sub).toBe('cognito-user-123');
       expect(result.email).toBe('user@example.com');
       expect(result['custom:role']).toBe('user');

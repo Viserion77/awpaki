@@ -24,8 +24,6 @@ describe('snsClient', () => {
       Message: 'test message',
     });
 
-    await expect(
-      snsClient.execute(command, { retries: 0, maxTimeout: 4000 })
-    ).rejects.toThrow();
+    await expect(snsClient.execute(command, { retries: 0, maxTimeout: 4000 })).rejects.toThrow();
   });
 });

@@ -2,7 +2,7 @@ import { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-la
 
 /**
  * Base class for HTTP errors with AWS Lambda integration
- * 
+ *
  * @example
  * ```typescript
  * throw new HttpError('Something went wrong', 500);
@@ -54,7 +54,7 @@ export class HttpError extends Error {
   /**
    * Returns an AWS API Gateway response object
    * Useful for returning errors in API Gateway Lambda functions
-   * 
+   *
    * @example
    * ```typescript
    * try {
@@ -67,17 +67,25 @@ export class HttpError extends Error {
    * }
    * ```
    */
-  public toApiGatewayResponse(additionalHeaders?: Record<string, string | boolean | number>): APIGatewayProxyResult {
+  public toApiGatewayResponse(
+    additionalHeaders?: Record<string, string | boolean | number>
+  ): APIGatewayProxyResult {
     const responseBody: any = { message: this.message };
-    
+
     if (this.data) {
       responseBody.data = this.data;
     }
 
     // Include Lambda metadata if available
-    if (this.lambdaMetadata.logStreamName || this.lambdaMetadata.executionEnv || this.lambdaMetadata.functionName) {
+    if (
+      this.lambdaMetadata.logStreamName ||
+      this.lambdaMetadata.executionEnv ||
+      this.lambdaMetadata.functionName
+    ) {
       responseBody['$x-custom-metadata'] = {
-        ...(this.lambdaMetadata.logStreamName && { logStreamName: this.lambdaMetadata.logStreamName }),
+        ...(this.lambdaMetadata.logStreamName && {
+          logStreamName: this.lambdaMetadata.logStreamName,
+        }),
         ...(this.lambdaMetadata.executionEnv && { executionEnv: this.lambdaMetadata.executionEnv }),
         ...(this.lambdaMetadata.functionName && { functionName: this.lambdaMetadata.functionName }),
       };
@@ -98,11 +106,11 @@ export class HttpError extends Error {
    * Returns an AWS API Gateway V2 (HTTP API) response object
    * Useful for returning errors in API Gateway V2 Lambda functions with Payload Format 2.0
    * Supports cookies in addition to standard headers
-   * 
+   *
    * @param additionalHeaders - Optional additional headers to include
    * @param cookies - Optional cookies to set
    * @returns API Gateway V2 response format
-   * 
+   *
    * @example
    * ```typescript
    * try {
@@ -120,15 +128,21 @@ export class HttpError extends Error {
     cookies?: string[]
   ): APIGatewayProxyStructuredResultV2 {
     const responseBody: any = { message: this.message };
-    
+
     if (this.data) {
       responseBody.data = this.data;
     }
 
     // Include Lambda metadata if available
-    if (this.lambdaMetadata.logStreamName || this.lambdaMetadata.executionEnv || this.lambdaMetadata.functionName) {
+    if (
+      this.lambdaMetadata.logStreamName ||
+      this.lambdaMetadata.executionEnv ||
+      this.lambdaMetadata.functionName
+    ) {
       responseBody['$x-custom-metadata'] = {
-        ...(this.lambdaMetadata.logStreamName && { logStreamName: this.lambdaMetadata.logStreamName }),
+        ...(this.lambdaMetadata.logStreamName && {
+          logStreamName: this.lambdaMetadata.logStreamName,
+        }),
         ...(this.lambdaMetadata.executionEnv && { executionEnv: this.lambdaMetadata.executionEnv }),
         ...(this.lambdaMetadata.functionName && { functionName: this.lambdaMetadata.functionName }),
       };
@@ -149,7 +163,7 @@ export class HttpError extends Error {
   /**
    * Returns a structured error response for non-HTTP Lambda triggers
    * Used for SQS, SNS, EventBridge, S3, and DynamoDB Stream triggers
-   * 
+   *
    * @example
    * ```typescript
    * try {

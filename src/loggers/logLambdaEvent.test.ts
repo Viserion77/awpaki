@@ -1,13 +1,13 @@
-import { 
+import {
   APIGatewayProxyEvent,
   APIGatewayProxyEventV2,
-  SQSEvent, 
-  SNSEvent, 
+  SQSEvent,
+  SNSEvent,
   EventBridgeEvent,
   S3Event,
   DynamoDBStreamEvent,
   AppSyncResolverEvent,
-  Context 
+  Context,
 } from 'aws-lambda';
 import {
   logApiGatewayEvent,
@@ -309,13 +309,13 @@ describe('logSqsEvent', () => {
 
     // Should have 2 info logs: 1 general + 1 per record
     expect(consoleInfoOutput).toHaveLength(2);
-    
+
     // Validate general event log
     const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry SQS Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
-    
+
     // Validate individual record log
     const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('SQS Record test-function:test-request-id-123:msg-123');
@@ -347,13 +347,13 @@ describe('logSnsEvent', () => {
 
     // Should have 2 info logs: 1 general + 1 per record
     expect(consoleInfoOutput).toHaveLength(2);
-    
+
     // Validate general event log
     const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry SNS Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
-    
+
     // Validate individual record log
     const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('SNS Record test-function:test-request-id-123:sns-msg-123');
@@ -407,7 +407,6 @@ describe('logEventBridgeEvent', () => {
     });
   });
 });
-
 
 const createMockS3Event = (): S3Event => ({
   Records: [
@@ -471,7 +470,8 @@ const createMockDynamoDBStreamEvent = (): DynamoDBStreamEvent => ({
         SizeBytes: 256,
         StreamViewType: 'NEW_AND_OLD_IMAGES',
       },
-      eventSourceARN: 'arn:aws:dynamodb:us-east-1:123456789012:table/users/stream/2025-12-08T10:00:00.000',
+      eventSourceARN:
+        'arn:aws:dynamodb:us-east-1:123456789012:table/users/stream/2025-12-08T10:00:00.000',
     },
   ],
 });
@@ -485,13 +485,13 @@ describe('logS3Event', () => {
 
     // Should have 2 info logs: 1 general + 1 per record
     expect(consoleInfoOutput).toHaveLength(2);
-    
+
     // Validate general event log
     const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry S3 Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
-    
+
     // Validate individual record log
     const [recordMessage, recordData] = consoleInfoOutput[1];
     expect(recordMessage).toBe('S3 Record test-function:test-request-id-123:s3-request-123');
@@ -532,17 +532,18 @@ describe('logDynamoDBStreamEvent', () => {
 
     // Should have 2 info logs: 1 general + 1 per record
     expect(consoleInfoOutput).toHaveLength(2);
-    
+
     // Validate general event log
     const [eventMessage, eventData] = consoleInfoOutput[0];
     expect(eventMessage).toBe('Entry DynamoDB Stream Event test-function:test-request-id-123');
     expect(eventData.eventType).toBeUndefined();
     expect(eventData.recordCount).toBe(1);
-    
-    
+
     // Validate individual record log
     const [recordMessage, recordData] = consoleInfoOutput[1];
-    expect(recordMessage).toBe('DynamoDB Stream Record test-function:test-request-id-123:ddb-event-123');
+    expect(recordMessage).toBe(
+      'DynamoDB Stream Record test-function:test-request-id-123:ddb-event-123'
+    );
     expect(recordData.eventName).toBe('INSERT');
   });
 
@@ -565,7 +566,9 @@ describe('logDynamoDBStreamEvent', () => {
 
     expect(consoleDebugOutput).toHaveLength(1);
     const [message, recordData] = consoleDebugOutput[0];
-    expect(message).toBe('DynamoDB Stream Full Data test-function:test-request-id-123:ddb-event-123');
+    expect(message).toBe(
+      'DynamoDB Stream Full Data test-function:test-request-id-123:ddb-event-123'
+    );
     expect(typeof recordData.keys).toBe('object');
     expect(recordData.keys).toHaveProperty('id');
     expect(typeof recordData.newImage).toBe('object');
@@ -601,7 +604,7 @@ const createMockAppSyncEvent = <TArgs = Record<string, any>, TSource = Record<st
   source: null as TSource,
   request: {
     headers: {
-      'authorization': 'Bearer token123',
+      authorization: 'Bearer token123',
       'content-type': 'application/json',
     },
     domainName: null,
@@ -713,8 +716,8 @@ describe('logAppSyncEvent', () => {
     const event = createMockAppSyncEvent();
     const context = createMockContext();
 
-    logAppSyncEvent(event, context, { 
-      additionalData: { correlationId: 'corr-123' } 
+    logAppSyncEvent(event, context, {
+      additionalData: { correlationId: 'corr-123' },
     });
 
     const [, data] = consoleInfoOutput[0];

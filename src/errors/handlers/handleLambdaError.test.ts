@@ -1,4 +1,3 @@
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import {
   handleApiGatewayError,
   handleApiGatewayErrorV2,
@@ -302,17 +301,15 @@ describe('Error Handlers', () => {
 
     it('should always throw HttpError', () => {
       const error = new BadRequest('Invalid GraphQL input');
-      
+
       expect(() => handleAppSyncError(error)).toThrow(BadRequest);
       expect(() => handleAppSyncError(error)).toThrow('Invalid GraphQL input');
     });
 
     it('should log HttpError details before throwing', () => {
       const error = new NotFound('User not found', { userId: '123' });
-      
-      try {
-        handleAppSyncError(error);
-      } catch {}
+
+      expect(() => handleAppSyncError(error)).toThrow(NotFound);
 
       expect(consoleErrorOutput).toHaveLength(1);
       const [message, data] = consoleErrorOutput[0];
@@ -325,18 +322,18 @@ describe('Error Handlers', () => {
 
     it('should throw and log standard Error', () => {
       const error = new Error('Database connection failed');
-      
+
       expect(() => handleAppSyncError(error)).toThrow('Database connection failed');
-      
+
       // Standard errors are not logged, just re-thrown
       expect(consoleErrorOutput).toHaveLength(0);
     });
 
     it('should throw and log unknown error types', () => {
       const error = 'string error';
-      
+
       expect(() => handleAppSyncError(error)).toThrow('string error');
-      
+
       // Unknown errors are not logged, just re-thrown
       expect(consoleErrorOutput).toHaveLength(0);
     });
@@ -355,18 +352,18 @@ describe('Error Handlers', () => {
     });
 
     it('should preserve original error for GraphQL formatting', () => {
-      const originalError = new BadRequest('Validation failed', { 
+      const originalError = new BadRequest('Validation failed', {
         field: 'email',
-        reason: 'Invalid format' 
+        reason: 'Invalid format',
       });
-      
+
       try {
         handleAppSyncError(originalError);
       } catch (error) {
         expect(error).toBe(originalError);
-        expect((error as BadRequest).data).toEqual({ 
+        expect((error as BadRequest).data).toEqual({
           field: 'email',
-          reason: 'Invalid format' 
+          reason: 'Invalid format',
         });
       }
     });

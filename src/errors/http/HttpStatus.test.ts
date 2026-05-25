@@ -33,7 +33,7 @@ describe('HttpStatus', () => {
     });
 
     it('should have all standard HTTP status codes', () => {
-      const values = Object.values(HttpStatus).filter(v => typeof v === 'number');
+      const values = Object.values(HttpStatus).filter((v) => typeof v === 'number');
       expect(values.length).toBeGreaterThan(40); // Should have many status codes
     });
   });
@@ -130,7 +130,7 @@ describe('HttpStatus', () => {
     it('should provide type safety', () => {
       const validStatus: HttpStatus = HttpStatus.BAD_REQUEST;
       expect(validStatus).toBe(400);
-      
+
       const numericStatus = 404;
       if (isValidHttpStatus(numericStatus)) {
         const name = getHttpStatusName(numericStatus);
@@ -153,7 +153,7 @@ describe('HttpStatus', () => {
             return 'other';
         }
       };
-      
+
       expect(getErrorType(HttpStatus.BAD_REQUEST)).toBe('validation');
       expect(getErrorType(HttpStatus.UNAUTHORIZED)).toBe('auth');
       expect(getErrorType(HttpStatus.NOT_FOUND)).toBe('notfound');

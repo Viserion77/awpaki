@@ -35,8 +35,6 @@ describe('sqsClient', () => {
       MessageBody: 'test message',
     });
 
-    await expect(
-      sqsClient.execute(command, { retries: 0, maxTimeout: 5000 })
-    ).rejects.toThrow();
+    await expect(sqsClient.execute(command, { retries: 0, maxTimeout: 5000 })).rejects.toThrow();
   });
 });

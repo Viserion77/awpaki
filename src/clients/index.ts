@@ -1,5 +1,13 @@
-export { dynamodbClient, RetryOptions } from './dynamodb/index';
+export { dynamodbClient } from './dynamodb/index';
+export type { RetryOptions } from './dynamodb/index';
 export { s3Client } from './s3/index';
 export { sqsClient } from './sqs/index';
 export { lambdaClient } from './lambda/index';
 export { snsClient } from './sns/index';
+export { iotClient } from './iot/index';
+export { openSearchClient } from './opensearch/index';
+export { sesClient } from './ses/index';
+export { cloudWatchClient } from './cloudwatch/index';
+export { apiGatewayClient } from './apigateway/index';
+export { secretsManagerClient } from './secretsmanager/index';
+export { timestreamQueryClient, timestreamWriteClient } from './timestream/index';

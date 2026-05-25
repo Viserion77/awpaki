@@ -117,6 +117,7 @@ src/parsers/
 ```
 
 **Key Benefits:**
+
 - ✅ Better organization as project grows
 - ✅ Clear separation of concerns
 - ✅ Easier to locate related files
@@ -243,6 +244,7 @@ export const parseJsonBody = <T>(body: string): T => {
 ```
 
 **Exception**: Arrow functions are acceptable for:
+
 - Inline callbacks: `.map(x => x * 2)`
 - React components (convention)
 - Single-line utilities where stack trace is not critical
@@ -254,17 +256,19 @@ export const parseJsonBody = <T>(body: string): T => {
 ### 1. Always Use Enums Instead of Magic Numbers/Strings
 
 ❌ **NEVER do this:**
+
 ```typescript
-statusCodeError: 401
-expectedType: 'string'
-throw new HttpError('Error', 404)
+statusCodeError: 401;
+expectedType: 'string';
+throw new HttpError('Error', 404);
 ```
 
 ✅ **ALWAYS do this:**
+
 ```typescript
-statusCodeError: HttpStatus.UNAUTHORIZED
-expectedType: ParameterType.STRING
-throw new NotFound('Error')
+statusCodeError: HttpStatus.UNAUTHORIZED;
+expectedType: ParameterType.STRING;
+throw new NotFound('Error');
 ```
 
 ### 2. Available Enums
@@ -335,6 +339,7 @@ switch (paramType) {
 ## Commit Guidelines
 
 When adding new features:
+
 1. Create feature in appropriate category
 2. Add comprehensive tests
 3. Update category index.ts
@@ -344,6 +349,7 @@ When adding new features:
 ## Documentation Guidelines
 
 **DO NOT create separate documentation files** like:
+
 - ❌ `ANALYSIS.md`
 - ❌ `NAMING_ANALYSIS.md`
 - ❌ `IMPROVEMENTS.md`
@@ -353,6 +359,7 @@ When adding new features:
 - ❌ Any other summary/analysis markdown files
 
 **Instead:**
+
 - ✅ Update the main `README.md` if documentation is needed
 - ✅ Add JSDoc comments directly in the code
 - ✅ Respond directly to user questions in chat

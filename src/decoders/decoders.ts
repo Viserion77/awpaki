@@ -1,20 +1,20 @@
 /**
  * Common decoder functions for parameter validation and transformation
- * 
+ *
  * Decoders are used with extractEventParams to validate and transform parameter values.
  * They throw errors when validation fails, which are automatically collected and returned
  * as structured error responses.
- * 
+ *
  * @module decoders
  */
 
 /**
  * Removes whitespace and validates non-empty string
- * 
+ *
  * @param value - Input value to validate
  * @returns Trimmed string
  * @throws Error if empty or not a string
- * 
+ *
  * @example
  * ```typescript
  * const schema = {
@@ -38,11 +38,11 @@ export function trimmedString(value: unknown): string {
 
 /**
  * Trims and converts string to lowercase
- * 
+ *
  * @param value - Input value to validate
  * @returns Trimmed and lowercased string
  * @throws Error if empty or not a string
- * 
+ *
  * @example
  * ```typescript
  * decoder: trimmedLowerString
@@ -59,11 +59,11 @@ export function trimmedLowerString(value: unknown): string {
 /**
  * Validates alphanumeric ID with hyphens and underscores
  * Converts to lowercase
- * 
+ *
  * @param value - Input value to validate
  * @returns Lowercased alphanumeric ID
  * @throws Error if contains invalid characters
- * 
+ *
  * @example
  * ```typescript
  * decoder: alphanumericId
@@ -80,11 +80,11 @@ export function alphanumericId(value: unknown): string {
 
 /**
  * Converts value to positive integer (>= 1)
- * 
+ *
  * @param value - Input value (string or number)
  * @returns Positive integer
  * @throws Error if not a positive number
- * 
+ *
  * @example
  * ```typescript
  * decoder: positiveInteger
@@ -104,11 +104,11 @@ export function positiveInteger(value: unknown): number {
 
 /**
  * Creates an integer validator within a specified range
- * 
+ *
  * @param min - Minimum value (inclusive, default: 1)
  * @param max - Maximum value (inclusive, default: 1000)
  * @returns Decoder function that validates the range
- * 
+ *
  * @example
  * ```typescript
  * const schema = {
@@ -135,11 +135,11 @@ export function limitedInteger(min = 1, max = 1000): (value: unknown) => number 
 
 /**
  * Decodes URL-encoded JSON string
- * 
+ *
  * @param value - URL-encoded JSON string
  * @returns Parsed object or null if empty
  * @throws Error if invalid JSON
- * 
+ *
  * @example
  * ```typescript
  * decoder: urlEncodedJson
@@ -157,11 +157,11 @@ export function urlEncodedJson(value: unknown): unknown {
 
 /**
  * Parses JSON string
- * 
+ *
  * @param value - JSON string
  * @returns Parsed object or null if empty
  * @throws Error if invalid JSON
- * 
+ *
  * @example
  * ```typescript
  * decoder: jsonString
@@ -180,11 +180,11 @@ export function jsonString(value: unknown): unknown {
 /**
  * Validates and normalizes email address
  * Converts to lowercase
- * 
+ *
  * @param value - Email address to validate
  * @returns Lowercased email address
  * @throws Error if invalid email format
- * 
+ *
  * @example
  * ```typescript
  * decoder: validEmail
@@ -202,10 +202,10 @@ export function validEmail(value: unknown): string {
 
 /**
  * Creates a custom enum validator
- * 
+ *
  * @param validValues - Array of valid enum values (case-insensitive)
  * @returns Decoder function that validates against the enum
- * 
+ *
  * @example
  * ```typescript
  * const schema = {
@@ -232,10 +232,10 @@ export function createEnum(validValues: string[]): (value: unknown) => string {
 /**
  * Filters array to valid non-empty strings
  * Removes empty strings and whitespace-only strings
- * 
+ *
  * @param value - Array to filter
  * @returns Filtered array of non-empty strings, or empty array if input is not an array
- * 
+ *
  * @example
  * ```typescript
  * decoder: stringArray
@@ -250,11 +250,11 @@ export function stringArray(value: unknown): string[] {
 
 /**
  * Converts various formats to boolean
- * 
+ *
  * @param value - Value to convert
  * @returns Boolean value
  * @throws Error if not a valid boolean format
- * 
+ *
  * @example
  * ```typescript
  * decoder: stringToBoolean
@@ -275,11 +275,11 @@ export function stringToBoolean(value: unknown): boolean {
 
 /**
  * Validates and normalizes ISO date string
- * 
+ *
  * @param value - Date string to validate
  * @returns ISO 8601 formatted date string
  * @throws Error if invalid date format
- * 
+ *
  * @example
  * ```typescript
  * decoder: isoDateString
@@ -300,10 +300,10 @@ export function isoDateString(value: unknown): string {
 
 /**
  * Creates an optional trimmed string decoder with default value
- * 
+ *
  * @param defaultValue - Default value if input is not a string (default: '')
  * @returns Decoder function that trims strings or returns default
- * 
+ *
  * @example
  * ```typescript
  * const schema = {
@@ -326,10 +326,10 @@ export function optionalTrimmedString(defaultValue = ''): (value: unknown) => st
 
 /**
  * Creates an optional integer decoder with default value
- * 
+ *
  * @param defaultValue - Default value if parsing fails (default: 0)
  * @returns Decoder function that parses integers or returns default
- * 
+ *
  * @example
  * ```typescript
  * const schema = {

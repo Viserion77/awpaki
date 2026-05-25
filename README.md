@@ -22,16 +22,25 @@ The library uses environment variables for AWS client configuration and Lambda m
 
 ### AWS Clients Configuration
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `AWS_REGION` | AWS region for all clients (e.g., `us-east-1`) | Yes* | - |
-| `AWS_DEFAULT_REGION` | Fallback region if `AWS_REGION` is not set | No | - |
-| `AWS_ENDPOINT_URL` | Global endpoint override for all AWS services | No | - |
-| `AWS_ENDPOINT_URL_DYNAMODB` | DynamoDB-specific endpoint override | No | `AWS_ENDPOINT_URL` |
-| `AWS_ENDPOINT_URL_S3` | S3-specific endpoint override | No | `AWS_ENDPOINT_URL` |
-| `AWS_ENDPOINT_URL_SQS` | SQS-specific endpoint override | No | `AWS_ENDPOINT_URL` |
-| `AWS_ENDPOINT_URL_LAMBDA` | Lambda-specific endpoint override | No | `AWS_ENDPOINT_URL` |
-| `AWS_ENDPOINT_URL_SNS` | SNS-specific endpoint override | No | `AWS_ENDPOINT_URL` |
+| Variable                            | Description                                    | Required | Default                       |
+| ----------------------------------- | ---------------------------------------------- | -------- | ----------------------------- |
+| `AWS_REGION`                        | AWS region for all clients (e.g., `us-east-1`) | Yes\*    | -                             |
+| `AWS_DEFAULT_REGION`                | Fallback region if `AWS_REGION` is not set     | No       | -                             |
+| `AWS_ENDPOINT_URL`                  | Global endpoint override for all AWS services  | No       | -                             |
+| `AWS_ENDPOINT_URL_DYNAMODB`         | DynamoDB-specific endpoint override            | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_S3`               | S3-specific endpoint override                  | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_SQS`              | SQS-specific endpoint override                 | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_LAMBDA`           | Lambda-specific endpoint override              | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_SNS`              | SNS-specific endpoint override                 | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_IOT`              | IoT Core-specific endpoint override            | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_OPENSEARCH`       | OpenSearch-specific endpoint override          | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_SES`              | SES-specific endpoint override                 | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_CLOUDWATCH`       | CloudWatch-specific endpoint override          | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_API_GATEWAY`      | API Gateway-specific endpoint override         | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_SECRETS_MANAGER`  | Secrets Manager-specific endpoint override     | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_TIMESTREAM`       | Shared Timestream endpoint override            | No       | `AWS_ENDPOINT_URL`            |
+| `AWS_ENDPOINT_URL_TIMESTREAM_QUERY` | Timestream Query-specific endpoint override    | No       | `AWS_ENDPOINT_URL_TIMESTREAM` |
+| `AWS_ENDPOINT_URL_TIMESTREAM_WRITE` | Timestream Write-specific endpoint override    | No       | `AWS_ENDPOINT_URL_TIMESTREAM` |
 
 \* `AWS_REGION` is automatically set by AWS Lambda runtime. Only required when running locally.
 
@@ -39,11 +48,11 @@ The library uses environment variables for AWS client configuration and Lambda m
 
 These variables are automatically set by AWS Lambda and used for enhanced error responses:
 
-| Variable | Description | Used For |
-|----------|-------------|----------|
-| `AWS_LAMBDA_FUNCTION_NAME` | Name of the Lambda function | Error metadata |
-| `AWS_LAMBDA_LOG_STREAM_NAME` | CloudWatch log stream name | Error tracing |
-| `AWS_EXECUTION_ENV` | Lambda execution environment (e.g., `AWS_Lambda_nodejs20.x`) | Error metadata |
+| Variable                     | Description                                                  | Used For       |
+| ---------------------------- | ------------------------------------------------------------ | -------------- |
+| `AWS_LAMBDA_FUNCTION_NAME`   | Name of the Lambda function                                  | Error metadata |
+| `AWS_LAMBDA_LOG_STREAM_NAME` | CloudWatch log stream name                                   | Error tracing  |
+| `AWS_EXECUTION_ENV`          | Lambda execution environment (e.g., `AWS_Lambda_nodejs20.x`) | Error metadata |
 
 ### Example: Local Development with LocalStack
 
@@ -61,6 +70,7 @@ AWS_ENDPOINT_URL_SQS=http://localhost:4566
 ### Example: Production (AWS Lambda)
 
 In production, AWS Lambda automatically sets:
+
 - `AWS_REGION` - From the Lambda's deployed region
 - `AWS_LAMBDA_FUNCTION_NAME` - From the function configuration
 - `AWS_LAMBDA_LOG_STREAM_NAME` - Unique per invocation
@@ -71,7 +81,7 @@ No additional configuration is needed when running in AWS Lambda.
 ## Features
 
 - 📦 **TypeScript Support**: Full TypeScript support with type definitions
-- 🧪 **Well Tested**: Comprehensive test coverage with Jest (254 tests passing)
+- 🧪 **Well Tested**: Comprehensive test coverage with Jest (278 tests passing)
 - 📝 **JSDoc Documentation**: Complete JSDoc documentation for all functions
 - 🚀 **Easy to Use**: Simple and intuitive API
 - 🗂️ **Modular Architecture**: Organized by feature categories (clients, parsers, errors, extractors, loggers, decoders)
@@ -92,6 +102,13 @@ The library is organized into categories for better organization:
   - SQS
   - Lambda
   - SNS
+  - IoT Core
+  - OpenSearch
+  - SES
+  - CloudWatch
+  - API Gateway
+  - Secrets Manager
+  - Timestream Query and Write
 - **parsers/**: Data parsing utilities (JSON, etc.)
 - **errors/**: Custom error classes and error handling
   - HTTP errors with status codes
@@ -113,36 +130,38 @@ import { parseJsonBody } from 'awpaki/parsers';
 import * as parsers from 'awpaki/parsers';
 ```
 
+Root and category imports are safe for utility-only bundles. AWS clients are intentionally outside the package root. Prefer individual client subpaths such as `awpaki/clients/s3` or `awpaki/clients/secretsmanager` so optional AWS SDK peer dependencies are resolved only for the services your application imports.
+
 ### AWS Lambda Handler Types
 
 AWS provides official TypeScript types for all Lambda handlers via `@types/aws-lambda`. Use these types instead of manually typing events and return values:
 
 ```typescript
-import { 
+import {
   // API Gateway
-  APIGatewayProxyHandler,           // event: APIGatewayProxyEvent → APIGatewayProxyResult
-  APIGatewayProxyHandlerV2,         // HTTP API (v2)
-  
+  APIGatewayProxyHandler, // event: APIGatewayProxyEvent → APIGatewayProxyResult
+  APIGatewayProxyHandlerV2, // HTTP API (v2)
+
   // SQS
-  SQSHandler,                        // event: SQSEvent → SQSBatchResponse | void
-  
-  // SNS  
-  SNSHandler,                        // event: SNSEvent → void
-  
+  SQSHandler, // event: SQSEvent → SQSBatchResponse | void
+
+  // SNS
+  SNSHandler, // event: SNSEvent → void
+
   // DynamoDB Streams
-  DynamoDBStreamHandler,             // event: DynamoDBStreamEvent → DynamoDBBatchResponse | void
-  
+  DynamoDBStreamHandler, // event: DynamoDBStreamEvent → DynamoDBBatchResponse | void
+
   // S3
-  S3Handler,                         // event: S3Event → void
-  S3BatchHandler,                    // S3 Batch Operations
-  
+  S3Handler, // event: S3Event → void
+  S3BatchHandler, // S3 Batch Operations
+
   // EventBridge
-  EventBridgeHandler,                // Generic EventBridge handler
-  ScheduledHandler,                  // CloudWatch Events/cron
-  
+  EventBridgeHandler, // Generic EventBridge handler
+  ScheduledHandler, // CloudWatch Events/cron
+
   // Others
-  ALBHandler,                        // Application Load Balancer
-  CloudFrontRequestHandler,          // CloudFront
+  ALBHandler, // Application Load Balancer
+  CloudFrontRequestHandler, // CloudFront
   // ... many more available
 } from 'aws-lambda';
 
@@ -155,6 +174,7 @@ export const myHandler: SQSHandler = async (event, context) => {
 ```
 
 **Benefits:**
+
 - ✅ Automatic type inference for event and context
 - ✅ Type-safe return values
 - ✅ No need to manually import event types
@@ -162,18 +182,18 @@ export const myHandler: SQSHandler = async (event, context) => {
 
 **Quick Reference:**
 
-| Handler Type | Event Type | Return Type | Use Case |
-|---|---|---|---|
-| `APIGatewayProxyHandler` | `APIGatewayProxyEvent` | `APIGatewayProxyResult` | REST API |
-| `APIGatewayProxyHandlerV2` | `APIGatewayProxyEventV2` | `APIGatewayProxyResultV2` | HTTP API (v2) |
-| `AppSyncResolverHandler<TArgs, TResult>` | `AppSyncResolverEvent<TArgs>` | `TResult \| Promise<TResult>` | AppSync GraphQL |
-| `SQSHandler` | `SQSEvent` | `SQSBatchResponse \| void` | Message queues |
-| `SNSHandler` | `SNSEvent` | `void` | Pub/sub notifications |
-| `DynamoDBStreamHandler` | `DynamoDBStreamEvent` | `DynamoDBBatchResponse \| void` | Database streams |
-| `S3Handler` | `S3Event` | `void` | Object storage events |
-| `EventBridgeHandler<T, D, R>` | `EventBridgeEvent<T, D>` | `R` | Custom events |
-| `ScheduledHandler<T>` | `ScheduledEvent<T>` | `void` | Cron/scheduled |
-| `ALBHandler` | `ALBEvent` | `ALBResult` | Load balancer |
+| Handler Type                             | Event Type                    | Return Type                     | Use Case              |
+| ---------------------------------------- | ----------------------------- | ------------------------------- | --------------------- |
+| `APIGatewayProxyHandler`                 | `APIGatewayProxyEvent`        | `APIGatewayProxyResult`         | REST API              |
+| `APIGatewayProxyHandlerV2`               | `APIGatewayProxyEventV2`      | `APIGatewayProxyResultV2`       | HTTP API (v2)         |
+| `AppSyncResolverHandler<TArgs, TResult>` | `AppSyncResolverEvent<TArgs>` | `TResult \| Promise<TResult>`   | AppSync GraphQL       |
+| `SQSHandler`                             | `SQSEvent`                    | `SQSBatchResponse \| void`      | Message queues        |
+| `SNSHandler`                             | `SNSEvent`                    | `void`                          | Pub/sub notifications |
+| `DynamoDBStreamHandler`                  | `DynamoDBStreamEvent`         | `DynamoDBBatchResponse \| void` | Database streams      |
+| `S3Handler`                              | `S3Event`                     | `void`                          | Object storage events |
+| `EventBridgeHandler<T, D, R>`            | `EventBridgeEvent<T, D>`      | `R`                             | Custom events         |
+| `ScheduledHandler<T>`                    | `ScheduledEvent<T>`           | `void`                          | Cron/scheduled        |
+| `ALBHandler`                             | `ALBEvent`                    | `ALBResult`                     | Load balancer         |
 
 **Response Types:**
 
@@ -190,7 +210,7 @@ SQSBatchResponse: {
   batchItemFailures: Array<{ itemIdentifier: string }>;
 }
 
-// DynamoDB - Optional batch failure reporting  
+// DynamoDB - Optional batch failure reporting
 DynamoDBBatchResponse: {
   batchItemFailures: Array<{ itemIdentifier: string }>;
 }
@@ -205,22 +225,22 @@ DynamoDBBatchResponse: {
 This example demonstrates all the key patterns from the library:
 
 ```typescript
-import { 
+import {
   // Logging
   logApiGatewayEvent,
-  
+
   // Parameter extraction & validation
-  extractEventParams, 
+  extractEventParams,
   ParameterType,
-  
+
   // Error handling
   handleApiGatewayError,
   NotFound,
   HttpStatus,
   HttpErrorStatus,
-  
+
   // Type safety
-  HttpError
+  HttpError,
 } from 'awpaki';
 import { APIGatewayProxyHandler } from 'aws-lambda';
 
@@ -233,86 +253,89 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
   // 1️⃣ Log incoming event for debugging
   // AWS will filter logs based on Lambda configuration (info/debug)
   logApiGatewayEvent(event, context);
-  
+
   try {
     // 2️⃣ Extract and validate all parameters with type safety
-    const params = extractEventParams({
-      // Path parameters (from URL)
-      pathParameters: {
-        userId: {
-          label: 'User ID',
-          required: true,
-          expectedType: ParameterType.STRING,
-          statusCodeError: HttpErrorStatus.NOT_FOUND, // 404 if missing
-        },
-      },
-      
-      // Headers (authentication, content-type, etc)
-      headers: {
-        authorization: {
-          label: 'Authorization',
-          required: true,
-          caseInsensitive: true, // Matches Authorization, authorization, AUTHORIZATION
-          statusCodeError: HttpErrorStatus.UNAUTHORIZED, // 401 if missing
-        },
-        'content-type': {
-          label: 'Content-Type',
-          default: 'application/json',
-        },
-      },
-      
-      // Request body (for POST/PUT/PATCH)
-      body: {
-        name: {
-          label: 'Name',
-          required: true,
-          expectedType: ParameterType.STRING,
-        },
-        email: {
-          label: 'Email',
-          required: true,
-          expectedType: ParameterType.STRING,
-          decoder: (value: string) => {
-            // Custom validation/transformation
-            if (!value.includes('@')) {
-              throw new Error('Invalid email format');
-            }
-            return value.toLowerCase();
+    const params = extractEventParams(
+      {
+        // Path parameters (from URL)
+        pathParameters: {
+          userId: {
+            label: 'User ID',
+            required: true,
+            expectedType: ParameterType.STRING,
+            statusCodeError: HttpErrorStatus.NOT_FOUND, // 404 if missing
           },
         },
-        age: {
-          label: 'Age',
-          expectedType: ParameterType.NUMBER,
-          default: 18, // Optional with default
+
+        // Headers (authentication, content-type, etc)
+        headers: {
+          authorization: {
+            label: 'Authorization',
+            required: true,
+            caseInsensitive: true, // Matches Authorization, authorization, AUTHORIZATION
+            statusCodeError: HttpErrorStatus.UNAUTHORIZED, // 401 if missing
+          },
+          'content-type': {
+            label: 'Content-Type',
+            default: 'application/json',
+          },
         },
-        tags: {
-          label: 'Tags',
-          expectedType: ParameterType.ARRAY,
-          default: [],
+
+        // Request body (for POST/PUT/PATCH)
+        body: {
+          name: {
+            label: 'Name',
+            required: true,
+            expectedType: ParameterType.STRING,
+          },
+          email: {
+            label: 'Email',
+            required: true,
+            expectedType: ParameterType.STRING,
+            decoder: (value: string) => {
+              // Custom validation/transformation
+              if (!value.includes('@')) {
+                throw new Error('Invalid email format');
+              }
+              return value.toLowerCase();
+            },
+          },
+          age: {
+            label: 'Age',
+            expectedType: ParameterType.NUMBER,
+            default: 18, // Optional with default
+          },
+          tags: {
+            label: 'Tags',
+            expectedType: ParameterType.ARRAY,
+            default: [],
+          },
+        },
+
+        // Query string parameters
+        queryStringParameters: {
+          includeDetails: {
+            label: 'Include Details',
+            expectedType: ParameterType.BOOLEAN,
+            default: false,
+          },
         },
       },
-      
-      // Query string parameters
-      queryStringParameters: {
-        includeDetails: {
-          label: 'Include Details',
-          expectedType: ParameterType.BOOLEAN,
-          default: false,
-        },
-      },
-    }, event);
-    
+      event
+    );
+
     // 3️⃣ Business logic with validated parameters
     // All params are now type-safe and validated
     const token = params.authorization.replace('Bearer ', '');
-    
+
     // Simulate database lookup
     const existingUser = await getUserById(params.userId);
     if (!existingUser) {
       // Throw type-safe HTTP errors
       throw new NotFound(`User ${params.userId} not found`);
     }
-    
+
     // Update user
     const updatedUser = await updateUser(params.userId, {
       name: params.name,
@@ -320,7 +343,7 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
       age: params.age,
       tags: params.tags,
     });
-    
+
     // 4️⃣ Return success response
     return {
       statusCode: HttpStatus.OK, // Type-safe status code
@@ -329,12 +352,11 @@ export const handler: APIGatewayProxyHandler = async (event, context) => {
       },
       body: JSON.stringify({
         success: true,
-        data: params.includeDetails 
+        data: params.includeDetails
           ? { ...updatedUser, metadata: { updatedAt: new Date().toISOString() } }
           : updatedUser,
       }),
     };
-    
   } catch (error) {
     // 5️⃣ Centralized error handling
     // Converts HttpError to proper API Gateway response
@@ -359,17 +381,18 @@ async function updateUser(userId: string, data: any) {
 
 Cada tipo de evento Lambda tem um logger específico que extrai informações relevantes:
 
-| Logger Function | Event Type | Info Logged | Debug Logged |
-|---|---|---|---|
-| `logApiGatewayEvent(event, context)` | API Gateway | HTTP method, path, user agent | All headers, query params, body |
-| `logSqsEvent(event, context)` | SQS | Queue name, record count | Full message bodies |
-| `logSnsEvent(event, context)` | SNS | Topic ARN, subject, record count | Full message content |
-| `logEventBridgeEvent(event, context)` | EventBridge | Source, detail-type, account | Full event detail |
-| `logS3Event(event, context)` | S3 | Bucket, object key, event type | Object size, etag |
-| `logDynamoDBStreamEvent(event, context)` | DynamoDB Streams | Table name, event types, keys | Full old/new images |
-| `logAppSyncEvent(event, context)` | AppSync | Operation, field name, identity | Full arguments, source, headers |
+| Logger Function                          | Event Type       | Info Logged                      | Debug Logged                    |
+| ---------------------------------------- | ---------------- | -------------------------------- | ------------------------------- |
+| `logApiGatewayEvent(event, context)`     | API Gateway      | HTTP method, path, user agent    | All headers, query params, body |
+| `logSqsEvent(event, context)`            | SQS              | Queue name, record count         | Full message bodies             |
+| `logSnsEvent(event, context)`            | SNS              | Topic ARN, subject, record count | Full message content            |
+| `logEventBridgeEvent(event, context)`    | EventBridge      | Source, detail-type, account     | Full event detail               |
+| `logS3Event(event, context)`             | S3               | Bucket, object key, event type   | Object size, etag               |
+| `logDynamoDBStreamEvent(event, context)` | DynamoDB Streams | Table name, event types, keys    | Full old/new images             |
+| `logAppSyncEvent(event, context)`        | AppSync          | Operation, field name, identity  | Full arguments, source, headers |
 
 **Uso:**
+
 ```typescript
 import { logSqsEvent, logSnsEvent, logS3Event } from 'awpaki';
 
@@ -399,17 +422,17 @@ export const s3Handler: S3Handler = async (event, context) => {
 
 Cada tipo de trigger precisa de um error handler específico:
 
-| Error Handler | Event Type | Return Type | Comportamento |
-|---|---|---|---|
-| `handleApiGatewayError(error)` | API Gateway V1 (REST API) | `APIGatewayProxyResult` | Retorna response HTTP com statusCode |
+| Error Handler                              | Event Type                    | Return Type               | Comportamento                                 |
+| ------------------------------------------ | ----------------------------- | ------------------------- | --------------------------------------------- |
+| `handleApiGatewayError(error)`             | API Gateway V1 (REST API)     | `APIGatewayProxyResult`   | Retorna response HTTP com statusCode          |
 | `handleApiGatewayErrorV2(error, cookies?)` | **API Gateway V2 (HTTP API)** | `APIGatewayProxyResultV2` | **Retorna response V2 com suporte a cookies** |
-| `handleAppSyncError(error)` | AppSync | `never` | Loga e re-lança erro (GraphQL formata) |
-| `handleSqsError(error)` | SQS | `void` | Re-lança erro para retry/DLQ |
-| `handleSnsError(error)` | SNS | `void` | Re-lança erro para retry/DLQ |
-| `handleEventBridgeError(error)` | EventBridge | `void` | Re-lança erro para retry/DLQ |
-| `handleS3Error(error)` | S3 | `void` | Re-lança erro para retry/DLQ |
-| `handleDynamoDBStreamError(error)` | DynamoDB Streams | `void` | Re-lança erro para retry/DLQ |
-| `handleGenericError(error)` | Qualquer | `void` | Alias genérico (mesma lógica) |
+| `handleAppSyncError(error)`                | AppSync                       | `never`                   | Loga e re-lança erro (GraphQL formata)        |
+| `handleSqsError(error)`                    | SQS                           | `void`                    | Re-lança erro para retry/DLQ                  |
+| `handleSnsError(error)`                    | SNS                           | `void`                    | Re-lança erro para retry/DLQ                  |
+| `handleEventBridgeError(error)`            | EventBridge                   | `void`                    | Re-lança erro para retry/DLQ                  |
+| `handleS3Error(error)`                     | S3                            | `void`                    | Re-lança erro para retry/DLQ                  |
+| `handleDynamoDBStreamError(error)`         | DynamoDB Streams              | `void`                    | Re-lança erro para retry/DLQ                  |
+| `handleGenericError(error)`                | Qualquer                      | `void`                    | Alias genérico (mesma lógica)                 |
 
 **Diferenças:**
 
@@ -419,13 +442,14 @@ Cada tipo de trigger precisa de um error handler específico:
 - **Outros triggers**: Re-lançam erros não-HTTP para acionar retry/DLQ do AWS Lambda.
 
 **Uso:**
+
 ```typescript
-import { 
+import {
   handleApiGatewayErrorV2, // NEW: For V2 (HTTP API)
-  handleSqsError, 
+  handleSqsError,
   handleDynamoDBStreamError,
   BadRequest,
-  Unauthorized 
+  Unauthorized,
 } from 'awpaki';
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 
@@ -434,17 +458,15 @@ export const apiV2Handler: APIGatewayProxyHandlerV2 = async (event, context) => 
   try {
     // Your business logic
     const user = await authenticateUser(event.headers.authorization);
-    
+
     return {
       statusCode: 200,
       body: JSON.stringify({ user }),
-      cookies: [`session=${user.sessionId}; HttpOnly; Secure`]
+      cookies: [`session=${user.sessionId}; HttpOnly; Secure`],
     };
   } catch (error) {
     // Clear cookies on error if needed
-    const cookies = error instanceof Unauthorized 
-      ? ['session=; Max-Age=0'] 
-      : undefined;
+    const cookies = error instanceof Unauthorized ? ['session=; Max-Age=0'] : undefined;
     return handleApiGatewayErrorV2(error, cookies);
   }
 };
@@ -465,18 +487,18 @@ export const sqsHandler: SQSHandler = async (event, context) => {
 // DynamoDB Stream Handler com batch failures
 export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
   const batchItemFailures: { itemIdentifier: string }[] = [];
-  
+
   for (const record of event.Records) {
     try {
       await processRecord(record);
     } catch (error) {
       console.error('Failed record:', record.eventID, error);
-      batchItemFailures.push({ 
-        itemIdentifier: record.dynamodb?.SequenceNumber || '' 
+      batchItemFailures.push({
+        itemIdentifier: record.dynamodb?.SequenceNumber || '',
       });
     }
   }
-  
+
   // Return failed items for retry (type-safe)
   return { batchItemFailures };
 };
@@ -484,13 +506,12 @@ export const streamHandler: DynamoDBStreamHandler = async (event, context) => {
 
 **Observação:** Todos os handlers SQS/SNS/EventBridge/S3/DynamoDB são **aliases** de `handleGenericError`. Use o que for mais semântico para seu caso.
 
-
 ### AppSync Resolver Example
 
 AppSync Lambda resolvers receive GraphQL context and return typed results. The library provides **native AppSync support** with `AppSyncEventSchema`:
 
 ```typescript
-import { 
+import {
   extractEventParams,
   logAppSyncEvent,
   handleAppSyncError,
@@ -499,7 +520,7 @@ import {
   NotFound,
   HttpErrorStatus,
   validEmail,
-  trimmedString
+  trimmedString,
 } from 'awpaki';
 import { AppSyncResolverHandler } from 'aws-lambda';
 
@@ -515,61 +536,66 @@ interface User {
 }
 
 // AppSync resolver handler with typed arguments and result
-export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async (event, context) => {
+export const getUserResolver: AppSyncResolverHandler<GetUserArgs, User> = async (
+  event,
+  context
+) => {
   // Log AppSync event with operation details
   logAppSyncEvent(event, context);
-  
+
   try {
     // Native AppSync schema - extracts from arguments, identity, and identity.claims
     const params = extractEventParams<{
       id: string;
       sub: string;
       email: string;
-    }>({
-      // GraphQL arguments
-      arguments: {
-        id: {
-          label: 'User ID',
-          required: true,
-          expectedType: ParameterType.STRING,
-          statusCodeError: HttpErrorStatus.BAD_REQUEST,
-        },
-      },
-      // Cognito identity with nested claims
-      identity: {
-        sub: {
-          label: 'Caller ID',
-          required: true,
-          statusCodeError: HttpErrorStatus.UNAUTHORIZED,
-        },
-        claims: {
-          email: {
-            label: 'Caller Email',
+    }>(
+      {
+        // GraphQL arguments
+        arguments: {
+          id: {
+            label: 'User ID',
             required: true,
-            decoder: validEmail,
+            expectedType: ParameterType.STRING,
+            statusCodeError: HttpErrorStatus.BAD_REQUEST,
           },
         },
-      },
-    } as AppSyncEventSchema, event);
-    
+        // Cognito identity with nested claims
+        identity: {
+          sub: {
+            label: 'Caller ID',
+            required: true,
+            statusCodeError: HttpErrorStatus.UNAUTHORIZED,
+          },
+          claims: {
+            email: {
+              label: 'Caller Email',
+              required: true,
+              decoder: validEmail,
+            },
+          },
+        },
+      } as AppSyncEventSchema,
+      event
+    );
+
     // Authorization check
     if (params.sub !== params.id) {
       throw new NotFound('Unauthorized to access this user');
     }
-    
+
     // Fetch user from database
     const user = await getUserById(params.id);
-    
+
     if (!user) {
       throw new NotFound(`User ${params.id} not found`);
     }
-    
+
     return {
       id: user.id,
       name: user.name,
       email: user.email,
     };
-    
   } catch (error) {
     // Logs HttpError and re-throws for GraphQL to format
     return handleAppSyncError(error);
@@ -584,40 +610,45 @@ interface CreateUserArgs {
   };
 }
 
-export const createUserResolver: AppSyncResolverHandler<CreateUserArgs, User> = async (event, context) => {
+export const createUserResolver: AppSyncResolverHandler<CreateUserArgs, User> = async (
+  event,
+  context
+) => {
   logAppSyncEvent(event, context);
-  
+
   try {
     // For mutations with nested input, map to arguments
-    const params = extractEventParams<{ name: string; email: string }>({
-      arguments: {
-        name: {
-          label: 'Name',
-          required: true,
-          expectedType: ParameterType.STRING,
-          decoder: trimmedString,
+    const params = extractEventParams<{ name: string; email: string }>(
+      {
+        arguments: {
+          name: {
+            label: 'Name',
+            required: true,
+            expectedType: ParameterType.STRING,
+            decoder: trimmedString,
+          },
+          email: {
+            label: 'Email',
+            required: true,
+            expectedType: ParameterType.STRING,
+            decoder: validEmail,
+          },
         },
-        email: {
-          label: 'Email',
-          required: true,
-          expectedType: ParameterType.STRING,
-          decoder: validEmail,
-        },
-      },
-    } as AppSyncEventSchema, {
-      // Flatten input to arguments
-      ...event,
-      arguments: event.arguments.input || {},
-    });
-    
+      } as AppSyncEventSchema,
+      {
+        // Flatten input to arguments
+        ...event,
+        arguments: event.arguments.input || {},
+      }
+    );
+
     // Create user with validated data
     const user = await createUser({
       name: params.name,
       email: params.email,
     });
-    
+
     return user;
-    
   } catch (error) {
     throw error; // AppSync will format as GraphQL error
   }
@@ -638,15 +669,15 @@ interface PostAuthorArgs {
 export const postAuthorResolver: AppSyncResolverHandler<PostAuthorArgs, User> = async (event) => {
   // event.source contains the parent Post object
   const post = event.source as Post;
-  
+
   console.debug('Resolving author for post', { postId: post.id, authorId: post.authorId });
-  
+
   const author = await getUserById(post.authorId);
-  
+
   if (!author) {
     throw new NotFound(`Author ${post.authorId} not found`);
   }
-  
+
   return author;
 };
 
@@ -663,6 +694,7 @@ async function createUser(data: { name: string; email: string }): Promise<User> 
 ```
 
 **AppSync Event Structure:**
+
 ```typescript
 {
   arguments: TArgs,              // GraphQL query/mutation arguments
@@ -698,23 +730,23 @@ AWS-native logging for all Lambda trigger types. Emits structured logs at approp
 AWS Lambda automatically filters logs based on your configuration. No environment variables needed in your code.
 
 ```typescript
-import { 
+import {
   logApiGatewayEvent,
   logApiGatewayEventV2, // NEW: For API Gateway V2 (HTTP API)
-  logSqsEvent, 
-  logSnsEvent, 
+  logSqsEvent,
+  logSnsEvent,
   logEventBridgeEvent,
   logS3Event,
-  logDynamoDBStreamEvent 
+  logDynamoDBStreamEvent,
 } from 'awpaki';
-import { 
+import {
   APIGatewayProxyHandler,
   APIGatewayProxyHandlerV2, // NEW: For V2
   SQSHandler,
   SNSHandler,
   EventBridgeHandler,
   S3Handler,
-  DynamoDBStreamHandler
+  DynamoDBStreamHandler,
 } from 'aws-lambda';
 
 // API Gateway V1 (REST API) - Logs request metadata + headers (debug)
@@ -763,7 +795,7 @@ export const dynamoHandler: DynamoDBStreamHandler = async (event, context) => {
   logDynamoDBStreamEvent(event, context);
   // Info: { eventName, keys: 'id, email', newImageKeys: 'id, name, email' }
   // Debug: { Keys: { full object }, NewImage: { full object } }
-}
+};
 
 // Add custom metadata to any logger
 logApiGatewayEvent(event, context, {
@@ -784,7 +816,7 @@ functions:
   myFunction:
     environment:
       # AWS uses this for log filtering (not read by awpaki)
-      AWS_LAMBDA_LOG_LEVEL: DEBUG  # or INFO (default)
+      AWS_LAMBDA_LOG_LEVEL: DEBUG # or INFO (default)
 ```
 
 ### parseJsonBody
@@ -823,29 +855,29 @@ const schema = {
     id: {
       label: 'User ID',
       required: true,
-      expectedType: 'string'
-    }
+      expectedType: 'string',
+    },
   },
   body: {
     email: {
       label: 'Email',
       required: true,
-      expectedType: 'string'
+      expectedType: 'string',
     },
     age: {
       label: 'Age',
       expectedType: 'number',
-      default: 18
-    }
+      default: 18,
+    },
   },
   headers: {
     authorization: {
       label: 'Authorization',
       required: true,
       caseInsensitive: true,
-      statusCodeError: 401
-    }
-  }
+      statusCodeError: 401,
+    },
+  },
 };
 
 // Extract and validate
@@ -871,12 +903,7 @@ try {
 Comprehensive HTTP error classes with Lambda integration and multiple error support.
 
 ```typescript
-import {
-  BadRequest,
-  Unauthorized,
-  UnprocessableEntity,
-  NotFound
-} from 'awpaki';
+import { BadRequest, Unauthorized, UnprocessableEntity, NotFound } from 'awpaki';
 
 // Single error
 throw new BadRequest('Invalid input');
@@ -885,7 +912,7 @@ throw new BadRequest('Invalid input');
 throw new UnprocessableEntity('Validation failed', {
   email: 'Invalid email format',
   age: 'Must be 18 or older',
-  password: 'Must be at least 8 characters'
+  password: 'Must be at least 8 characters',
 });
 
 // With Lambda response
@@ -904,7 +931,7 @@ try {
 Decoders are validation and transformation functions that work with `extractEventParams` to ensure parameter quality. They validate inputs and transform them into the expected format:
 
 ```typescript
-import { 
+import {
   extractEventParams,
   ParameterType,
   validEmail,
@@ -912,52 +939,55 @@ import {
   positiveInteger,
   createEnum,
   stringToBoolean,
-  optionalTrimmedString
+  optionalTrimmedString,
 } from 'awpaki';
 import { APIGatewayProxyHandler } from 'aws-lambda';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  const params = extractEventParams({
-    body: {
-      email: {
-        label: 'Email',
-        required: true,
-        expectedType: ParameterType.STRING,
-        decoder: validEmail, // Validates format and normalizes to lowercase
-      },
-      name: {
-        label: 'Name', 
-        required: true,
-        expectedType: ParameterType.STRING,
-        decoder: trimmedString, // Removes whitespace and validates non-empty
-      },
-      age: {
-        label: 'Age',
-        required: true,
-        expectedType: ParameterType.NUMBER,
-        decoder: positiveInteger, // Ensures positive integer
-      },
-      status: {
-        label: 'Status',
-        required: true,
-        expectedType: ParameterType.STRING,
-        decoder: createEnum(['active', 'inactive', 'pending']), // Only allows specific values
-      },
-      receiveNewsletter: {
-        label: 'Receive Newsletter',
-        expectedType: ParameterType.BOOLEAN,
-        default: false,
-        decoder: stringToBoolean, // Converts "true"/"false"/"1"/"0"/"yes"/"no" to boolean
-      },
-      bio: {
-        label: 'Bio',
-        expectedType: ParameterType.STRING,
-        default: '',
-        decoder: optionalTrimmedString('No bio provided'), // Returns default for non-string
+  const params = extractEventParams(
+    {
+      body: {
+        email: {
+          label: 'Email',
+          required: true,
+          expectedType: ParameterType.STRING,
+          decoder: validEmail, // Validates format and normalizes to lowercase
+        },
+        name: {
+          label: 'Name',
+          required: true,
+          expectedType: ParameterType.STRING,
+          decoder: trimmedString, // Removes whitespace and validates non-empty
+        },
+        age: {
+          label: 'Age',
+          required: true,
+          expectedType: ParameterType.NUMBER,
+          decoder: positiveInteger, // Ensures positive integer
+        },
+        status: {
+          label: 'Status',
+          required: true,
+          expectedType: ParameterType.STRING,
+          decoder: createEnum(['active', 'inactive', 'pending']), // Only allows specific values
+        },
+        receiveNewsletter: {
+          label: 'Receive Newsletter',
+          expectedType: ParameterType.BOOLEAN,
+          default: false,
+          decoder: stringToBoolean, // Converts "true"/"false"/"1"/"0"/"yes"/"no" to boolean
+        },
+        bio: {
+          label: 'Bio',
+          expectedType: ParameterType.STRING,
+          default: '',
+          decoder: optionalTrimmedString('No bio provided'), // Returns default for non-string
+        },
       },
     },
-  }, event);
-  
+    event
+  );
+
   // params.email is now validated and lowercase
   // params.name is trimmed with no extra spaces
   // params.age is a positive integer
@@ -970,32 +1000,40 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 **Available Decoders:**
 
 **String Decoders:**
+
 - `trimmedString(value)` - Removes whitespace, validates non-empty
 - `trimmedLowerString(value)` - Trims and converts to lowercase
 - `alphanumericId(value)` - Validates alphanumeric with hyphens/underscores, converts to lowercase
 - `validEmail(value)` - Validates email format, converts to lowercase
 
 **Number Decoders:**
+
 - `positiveInteger(value)` - Converts to integer, validates > 0
 - `limitedInteger(min?, max?)(value)` - Validates integer within range (default 1-1000)
 
 **JSON Decoders:**
+
 - `urlEncodedJson(value)` - Decodes URL-encoded JSON string
 - `jsonString(value)` - Parses JSON string
 
 **Enum Decoder:**
+
 - `createEnum(validValues)(value)` - Validates value is in allowed list, normalizes to lowercase
 
 **Array Decoder:**
+
 - `stringArray(value)` - Filters array to non-empty strings
 
 **Boolean Decoder:**
+
 - `stringToBoolean(value)` - Converts "true"/"false"/"1"/"0"/"yes"/"no"/"on"/"off" to boolean
 
 **Date Decoder:**
+
 - `isoDateString(value)` - Validates ISO date format, normalizes to ISO string
 
 **Optional Decoders:**
+
 - `optionalTrimmedString(defaultValue?)(value)` - Returns trimmed string or default (default: '')
 - `optionalInteger(defaultValue?)(value)` - Returns integer or default (default: 0)
 
@@ -1003,31 +1041,31 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
 ```typescript
 // Email validation and normalization
-decoder: validEmail
+decoder: validEmail;
 // Input: "USER@EXAMPLE.COM" → Output: "user@example.com"
 
 // Trim and validate non-empty
-decoder: trimmedString
+decoder: trimmedString;
 // Input: "  hello  " → Output: "hello"
 
 // Integer range validation
-decoder: limitedInteger(1, 100)
+decoder: limitedInteger(1, 100);
 // Input: "50" → Output: 50
 // Input: "150" → throws "Must be a number between 1 and 100"
 
 // Enum validation
-decoder: createEnum(['admin', 'user', 'guest'])
+decoder: createEnum(['admin', 'user', 'guest']);
 // Input: "ADMIN" → Output: "admin"
 // Input: "invalid" → throws "Must be one of: admin, user, guest"
 
 // Boolean conversion
-decoder: stringToBoolean
+decoder: stringToBoolean;
 // Input: "yes" → Output: true
 // Input: "0" → Output: false
 // Input: "maybe" → throws error
 
 // Optional with default
-decoder: optionalTrimmedString('N/A')
+decoder: optionalTrimmedString('N/A');
 // Input: null → Output: "N/A"
 // Input: "  text  " → Output: "text"
 ```
@@ -1041,17 +1079,21 @@ decoder: optionalTrimmedString('N/A')
 Parses a JSON stringified body with enhanced null handling and validation.
 
 **Type Parameters:**
+
 - `T` - The expected type of the parsed object
 
 **Parameters:**
+
 - `body: string | null | undefined` - The stringified JSON body to parse
 - `options?: ParseJsonBodyOptions<T>` - Optional configuration
   - `defaultValue?: T` - Default value when body is empty (makes body optional)
 
 **Returns:**
+
 - `T` - The parsed object of type T
 
 **Throws:**
+
 - `BadRequest` - When body is invalid JSON or empty (unless defaultValue provided)
 
 ---
@@ -1063,21 +1105,27 @@ Parses a JSON stringified body with enhanced null handling and validation.
 Type-safe HTTP status codes for all standard HTTP responses:
 
 ```typescript
-import { HttpStatus, HttpErrorStatus, isValidHttpStatus, isValidHttpErrorStatus, getHttpStatusName } from 'awpaki';
+import {
+  HttpStatus,
+  HttpErrorStatus,
+  isValidHttpStatus,
+  isValidHttpErrorStatus,
+  getHttpStatusName,
+} from 'awpaki';
 
 // HttpStatus - All standard HTTP status codes (1xx, 2xx, 3xx, 4xx, 5xx)
 return {
-  statusCode: HttpStatus.OK,              // 200
-  body: JSON.stringify({ success: true })
+  statusCode: HttpStatus.OK, // 200
+  body: JSON.stringify({ success: true }),
 };
 
 return {
-  statusCode: HttpStatus.CREATED,         // 201
-  body: JSON.stringify({ id: newId })
+  statusCode: HttpStatus.CREATED, // 201
+  body: JSON.stringify({ id: newId }),
 };
 
 return {
-  statusCode: HttpStatus.NO_CONTENT,      // 204
+  statusCode: HttpStatus.NO_CONTENT, // 204
 };
 
 // HttpErrorStatus - Only error codes with mapped error classes
@@ -1086,61 +1134,62 @@ const schema = {
     id: {
       label: 'User ID',
       required: true,
-      statusCodeError: HttpErrorStatus.NOT_FOUND  // 404 - Type-safe!
-    }
+      statusCodeError: HttpErrorStatus.NOT_FOUND, // 404 - Type-safe!
+    },
   },
   headers: {
     authorization: {
       label: 'Authorization',
       required: true,
-      statusCodeError: HttpErrorStatus.UNAUTHORIZED  // 401
-    }
-  }
+      statusCodeError: HttpErrorStatus.UNAUTHORIZED, // 401
+    },
+  },
 };
 
 // Validation helpers
-isValidHttpStatus(200);           // true - validates all HTTP status codes
-isValidHttpStatus(404);           // true
-isValidHttpStatus(999);           // false
+isValidHttpStatus(200); // true - validates all HTTP status codes
+isValidHttpStatus(404); // true
+isValidHttpStatus(999); // false
 
-isValidHttpErrorStatus(404);      // true - validates only error codes with classes
-isValidHttpErrorStatus(200);      // false - not an error status
-isValidHttpErrorStatus(418);      // false - not mapped in HttpErrorStatus
+isValidHttpErrorStatus(404); // true - validates only error codes with classes
+isValidHttpErrorStatus(200); // false - not an error status
+isValidHttpErrorStatus(418); // false - not mapped in HttpErrorStatus
 
-getHttpStatusName(404);           // "NotFound"
+getHttpStatusName(404); // "NotFound"
 getHttpStatusName(HttpStatus.NOT_FOUND); // "NotFound"
-getHttpStatusName(200);           // undefined - no error class for success codes
+getHttpStatusName(200); // undefined - no error class for success codes
 ```
 
 **HttpStatus - All Standard HTTP Status Codes:**
+
 ```typescript
 enum HttpStatus {
   // 1xx Informational
   CONTINUE = 100,
   SWITCHING_PROTOCOLS = 101,
   PROCESSING = 102,
-  
+
   // 2xx Success
   OK = 200,
   CREATED = 201,
   ACCEPTED = 202,
   NO_CONTENT = 204,
   // ... and more
-  
+
   // 3xx Redirection
   MOVED_PERMANENTLY = 301,
   FOUND = 302,
   NOT_MODIFIED = 304,
   TEMPORARY_REDIRECT = 307,
   // ... and more
-  
+
   // 4xx Client Errors
   BAD_REQUEST = 400,
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
   NOT_FOUND = 404,
   // ... and more
-  
+
   // 5xx Server Errors
   INTERNAL_SERVER_ERROR = 500,
   NOT_IMPLEMENTED = 501,
@@ -1151,6 +1200,7 @@ enum HttpStatus {
 ```
 
 **HttpErrorStatus - Error Codes with Mapped Error Classes:**
+
 ```typescript
 enum HttpErrorStatus {
   BAD_REQUEST = 400,
@@ -1171,6 +1221,7 @@ enum HttpErrorStatus {
 #### HTTP Error Classes
 
 All error classes extend `HttpError` and include:
+
 - `statusCode: number` - HTTP status code
 - `data?: Record<string, any>` - Additional error data
 - `headers?: Record<string, string | boolean | number>` - Custom headers
@@ -1178,6 +1229,7 @@ All error classes extend `HttpError` and include:
 - `toString()` - Formatted string for logging
 
 **Available Classes:**
+
 - `BadRequest` (400)
 - `Unauthorized` (401)
 - `Forbidden` (403)
@@ -1246,26 +1298,26 @@ import { HttpErrorStatus } from 'awpaki';
 
 const schema = {
   pathParameters: {
-    id: { 
-      label: 'User ID', 
-      required: true, 
-      statusCodeError: HttpErrorStatus.NOT_FOUND  // Type-safe
-    }
+    id: {
+      label: 'User ID',
+      required: true,
+      statusCodeError: HttpErrorStatus.NOT_FOUND, // Type-safe
+    },
   },
   headers: {
-    authorization: { 
-      label: 'Authorization', 
-      required: true, 
-      statusCodeError: HttpErrorStatus.UNAUTHORIZED
-    }
+    authorization: {
+      label: 'Authorization',
+      required: true,
+      statusCodeError: HttpErrorStatus.UNAUTHORIZED,
+    },
   },
   body: {
-    email: { 
-      label: 'Email', 
-      required: true, 
-      statusCodeError: HttpErrorStatus.BAD_REQUEST
-    }
-  }
+    email: {
+      label: 'Email',
+      required: true,
+      statusCodeError: HttpErrorStatus.BAD_REQUEST,
+    },
+  },
 };
 
 try {
@@ -1306,28 +1358,28 @@ const schema = {
     id: {
       label: 'User ID',
       required: true,
-      expectedType: ParameterType.STRING,  // Type-safe!
-      statusCodeError: HttpErrorStatus.NOT_FOUND
-    }
+      expectedType: ParameterType.STRING, // Type-safe!
+      statusCodeError: HttpErrorStatus.NOT_FOUND,
+    },
   },
   queryStringParameters: {
     limit: {
       label: 'Result Limit',
       expectedType: ParameterType.NUMBER,
-      default: 10
+      default: 10,
     },
     active: {
       label: 'Active Filter',
-      expectedType: ParameterType.BOOLEAN
-    }
+      expectedType: ParameterType.BOOLEAN,
+    },
   },
   body: {
     tags: {
       label: 'Tags',
       expectedType: ParameterType.ARRAY,
-      required: true
-    }
-  }
+      required: true,
+    },
+  },
 };
 ```
 
@@ -1338,22 +1390,27 @@ const schema = {
 Extracts and validates parameters from AWS Lambda events with comprehensive validation.
 
 **Type Parameters:**
+
 - `T` - The expected return type
 
 **Parameters:**
+
 - `schema: EventSchema` - Schema defining parameters to extract and validation rules
 - `event` - AWS Lambda event (APIGatewayProxyEvent or custom object)
 
 **Returns:**
+
 - `T` - Extracted and validated parameters
 
 **Throws:**
+
 - `UnprocessableEntity` - When validation fails (collects multiple errors)
 - `Unauthorized` - When a 401 error is configured
 
 **Schema Configuration:**
 
 Each parameter config supports:
+
 - `label: string` - Human-readable name
 - `required?: boolean` - Whether required
 - `expectedType?: 'string' | 'number' | 'boolean' | 'object' | 'array'` - Type validation
@@ -1365,6 +1422,7 @@ Each parameter config supports:
 - `decoder?: (value: unknown) => unknown` - Custom transformer
 
 **Supported Event Sources:**
+
 - `pathParameters` - URL path params
 - `queryStringParameters` - Query strings
 - `headers` - HTTP headers (with case-insensitive support)
@@ -1382,6 +1440,7 @@ Lambda event logging utilities for tracking and debugging in production environm
 Logs API Gateway events with HTTP details.
 
 **Logged Information:**
+
 - HTTP method and path
 - Query and path parameters
 - Source IP and user agent
@@ -1389,6 +1448,7 @@ Logs API Gateway events with HTTP details.
 - Stage and API ID
 
 **Example:**
+
 ```typescript
 import { logApiGatewayEvent } from 'awpaki';
 import { APIGatewayProxyEvent, Context } from 'aws-lambda';
@@ -1404,12 +1464,14 @@ export const handler = async (event: APIGatewayProxyEvent, context: Context) => 
 Logs SQS events with message details.
 
 **Logged Information:**
+
 - Message ID and count
 - Message body (truncated in INFO, full in DEBUG)
 - Queue ARN and region
 - Message attributes
 
 **Example:**
+
 ```typescript
 import { logSqsEvent } from 'awpaki';
 import { SQSEvent, Context } from 'aws-lambda';
@@ -1425,12 +1487,14 @@ export const handler = async (event: SQSEvent, context: Context) => {
 Logs SNS events with message details.
 
 **Logged Information:**
+
 - Message ID and subject
 - Message content (truncated in INFO, full in DEBUG)
 - Topic ARN
 - Timestamp and message attributes
 
 **Example:**
+
 ```typescript
 import { logSnsEvent } from 'awpaki';
 import { SNSEvent, Context } from 'aws-lambda';
@@ -1446,12 +1510,14 @@ export const handler = async (event: SNSEvent, context: Context) => {
 Logs EventBridge (CloudWatch Events) including cron/scheduled events.
 
 **Logged Information:**
+
 - Event ID and source
 - Detail type and time
 - Resources and region
 - Event detail (keys in INFO, full object in DEBUG)
 
 **Example:**
+
 ```typescript
 import { logEventBridgeEvent } from 'awpaki';
 import { EventBridgeEvent, Context } from 'aws-lambda';
@@ -1468,15 +1534,16 @@ Control logging verbosity via `LOG_LEVEL` environment variable:
 
 ```typescript
 enum LogLevel {
-  NONE = 'none',      // No logging
-  ERROR = 'error',    // Only errors
-  WARN = 'warn',      // Warnings and errors
-  INFO = 'info',      // Standard info (default)
-  DEBUG = 'debug',    // Full details (includes headers, full bodies)
+  NONE = 'none', // No logging
+  ERROR = 'error', // Only errors
+  WARN = 'warn', // Warnings and errors
+  INFO = 'info', // Standard info (default)
+  DEBUG = 'debug', // Full details (includes headers, full bodies)
 }
 ```
 
 **Environment Variable:**
+
 ```bash
 # In your Lambda environment
 LOG_LEVEL=info      # Default - standard logging
@@ -1485,16 +1552,18 @@ LOG_LEVEL=none      # Disable logging
 ```
 
 **Custom Configuration:**
+
 ```typescript
 import { logApiGatewayEvent, LogLevel } from 'awpaki';
 
 logApiGatewayEvent(event, context, {
-  envVar: 'CUSTOM_LOG_LEVEL',        // Custom env var name
-  defaultLevel: LogLevel.DEBUG,       // Default if env var not set
-  additionalData: {                   // Extra data to include
+  envVar: 'CUSTOM_LOG_LEVEL', // Custom env var name
+  defaultLevel: LogLevel.DEBUG, // Default if env var not set
+  additionalData: {
+    // Extra data to include
     version: '1.0.0',
-    environment: 'production'
-  }
+    environment: 'production',
+  },
 });
 ```
 
@@ -1515,11 +1584,21 @@ AWS SDK v3 clients with automatic retry logic using async-retry. These clients u
 
 #### Available Clients
 
-- **DynamoDB**: `dynamodbClient` (Document Client)
-- **S3**: `s3Client`
-- **SQS**: `sqsClient`
-- **Lambda**: `lambdaClient`
-- **SNS**: `snsClient`
+| Service                    | Export                  | Recommended import              |
+| -------------------------- | ----------------------- | ------------------------------- |
+| DynamoDB (Document Client) | `dynamodbClient`        | `awpaki/clients/dynamodb`       |
+| S3                         | `s3Client`              | `awpaki/clients/s3`             |
+| SQS                        | `sqsClient`             | `awpaki/clients/sqs`            |
+| Lambda                     | `lambdaClient`          | `awpaki/clients/lambda`         |
+| SNS                        | `snsClient`             | `awpaki/clients/sns`            |
+| IoT Core                   | `iotClient`             | `awpaki/clients/iot`            |
+| OpenSearch                 | `openSearchClient`      | `awpaki/clients/opensearch`     |
+| SES                        | `sesClient`             | `awpaki/clients/ses`            |
+| CloudWatch                 | `cloudWatchClient`      | `awpaki/clients/cloudwatch`     |
+| API Gateway                | `apiGatewayClient`      | `awpaki/clients/apigateway`     |
+| Secrets Manager            | `secretsManagerClient`  | `awpaki/clients/secretsmanager` |
+| Timestream Query           | `timestreamQueryClient` | `awpaki/clients/timestream`     |
+| Timestream Write           | `timestreamWriteClient` | `awpaki/clients/timestream`     |
 
 #### Environment Variables
 
@@ -1532,10 +1611,19 @@ Clients are automatically configured from environment variables:
 - `AWS_ENDPOINT_URL_SQS` - SQS-specific endpoint
 - `AWS_ENDPOINT_URL_LAMBDA` - Lambda-specific endpoint
 - `AWS_ENDPOINT_URL_SNS` - SNS-specific endpoint
+- `AWS_ENDPOINT_URL_IOT` - IoT Core-specific endpoint
+- `AWS_ENDPOINT_URL_OPENSEARCH` - OpenSearch-specific endpoint
+- `AWS_ENDPOINT_URL_SES` - SES-specific endpoint
+- `AWS_ENDPOINT_URL_CLOUDWATCH` - CloudWatch-specific endpoint
+- `AWS_ENDPOINT_URL_API_GATEWAY` - API Gateway-specific endpoint
+- `AWS_ENDPOINT_URL_SECRETS_MANAGER` - Secrets Manager-specific endpoint
+- `AWS_ENDPOINT_URL_TIMESTREAM` - Shared Timestream endpoint
+- `AWS_ENDPOINT_URL_TIMESTREAM_QUERY` - Timestream Query-specific endpoint
+- `AWS_ENDPOINT_URL_TIMESTREAM_WRITE` - Timestream Write-specific endpoint
 
 #### Installation
 
-Install only the AWS SDK clients you need as peer dependencies:
+The package root (`awpaki`) does not re-export AWS clients. Import from individual client subpaths and install only the AWS SDK clients you need as peer dependencies. The aggregate `awpaki/clients` export is available when your application installs every client peer dependency used by that aggregate.
 
 ```bash
 # For DynamoDB
@@ -1552,12 +1640,36 @@ npm install @aws-sdk/client-lambda async-retry
 
 # For SNS
 npm install @aws-sdk/client-sns async-retry
+
+# For IoT Core
+npm install @aws-sdk/client-iot async-retry
+
+# For OpenSearch
+npm install @aws-sdk/client-opensearch async-retry
+
+# For SES
+npm install @aws-sdk/client-ses async-retry
+
+# For CloudWatch
+npm install @aws-sdk/client-cloudwatch async-retry
+
+# For API Gateway
+npm install @aws-sdk/client-api-gateway async-retry
+
+# For Secrets Manager
+npm install @aws-sdk/client-secrets-manager async-retry
+
+# For Timestream Query
+npm install @aws-sdk/client-timestream-query async-retry
+
+# For Timestream Write
+npm install @aws-sdk/client-timestream-write async-retry
 ```
 
 #### DynamoDB Client
 
 ```typescript
-import { dynamodbClient } from 'awpaki/clients';
+import { dynamodbClient } from 'awpaki/clients/dynamodb';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
 // Simple usage - uses default retry options (3 retries)
@@ -1609,7 +1721,7 @@ const results = await dynamodbClient.execute(
 #### S3 Client
 
 ```typescript
-import { s3Client } from 'awpaki/clients';
+import { s3Client } from 'awpaki/clients/s3';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 // Get object
@@ -1638,7 +1750,7 @@ await s3Client.execute(
 #### SQS Client
 
 ```typescript
-import { sqsClient } from 'awpaki/clients';
+import { sqsClient } from 'awpaki/clients/sqs';
 import {
   SendMessageCommand,
   ReceiveMessageCommand,
@@ -1680,7 +1792,7 @@ if (response.Messages) {
 #### Lambda Client
 
 ```typescript
-import { lambdaClient } from 'awpaki/clients';
+import { lambdaClient } from 'awpaki/clients/lambda';
 import { InvokeCommand } from '@aws-sdk/client-lambda';
 
 // Invoke function
@@ -1701,7 +1813,7 @@ const result = JSON.parse(Buffer.from(response.Payload).toString());
 #### SNS Client
 
 ```typescript
-import { snsClient } from 'awpaki/clients';
+import { snsClient } from 'awpaki/clients/sns';
 import { PublishCommand } from '@aws-sdk/client-sns';
 
 // Publish message
@@ -1722,19 +1834,49 @@ await snsClient.execute(
 );
 ```
 
+#### Additional AWS Clients
+
+```typescript
+import { iotClient } from 'awpaki/clients/iot';
+import { openSearchClient } from 'awpaki/clients/opensearch';
+import { sesClient } from 'awpaki/clients/ses';
+import { cloudWatchClient } from 'awpaki/clients/cloudwatch';
+import { apiGatewayClient } from 'awpaki/clients/apigateway';
+import { secretsManagerClient } from 'awpaki/clients/secretsmanager';
+import { timestreamQueryClient, timestreamWriteClient } from 'awpaki/clients/timestream';
+
+import { ListThingsCommand } from '@aws-sdk/client-iot';
+import { ListDomainNamesCommand } from '@aws-sdk/client-opensearch';
+import { ListIdentitiesCommand } from '@aws-sdk/client-ses';
+import { ListMetricsCommand } from '@aws-sdk/client-cloudwatch';
+import { GetRestApisCommand } from '@aws-sdk/client-api-gateway';
+import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
+import { QueryCommand } from '@aws-sdk/client-timestream-query';
+import { ListDatabasesCommand } from '@aws-sdk/client-timestream-write';
+
+await iotClient.execute(new ListThingsCommand({}));
+await openSearchClient.execute(new ListDomainNamesCommand({}));
+await sesClient.execute(new ListIdentitiesCommand({}));
+await cloudWatchClient.execute(new ListMetricsCommand({ Namespace: 'AWS/Lambda' }));
+await apiGatewayClient.execute(new GetRestApisCommand({}));
+await secretsManagerClient.execute(new GetSecretValueCommand({ SecretId: 'my-secret' }));
+await timestreamQueryClient.execute(new QueryCommand({ QueryString: 'SELECT 1' }));
+await timestreamWriteClient.execute(new ListDatabasesCommand({}));
+```
+
 #### Retry Configuration
 
 All clients support optional retry configuration per request:
 
 ```typescript
-import { dynamodbClient, type RetryOptions } from 'awpaki/clients';
+import { dynamodbClient, type RetryOptions } from 'awpaki/clients/dynamodb';
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
 // Default retry options (used if not specified)
 const defaultOptions: RetryOptions = {
-  retries: 3,        // Number of retry attempts
-  minTimeout: 1000,  // Initial timeout (ms)
-  maxTimeout: 3000,  // Maximum timeout (ms)
+  retries: 3, // Number of retry attempts
+  minTimeout: 1000, // Initial timeout (ms)
+  maxTimeout: 3000, // Maximum timeout (ms)
 };
 
 // Custom retry for specific request
@@ -1749,6 +1891,7 @@ const user = await dynamodbClient.execute(
     maxTimeout: 5000,
   }
 );
+```
 
 ```typescript
 interface RetryOptions {
@@ -1756,21 +1899,17 @@ interface RetryOptions {
    * Maximum number of retries (default: 3)
    */
   retries?: number;
-  
+
   /**
    * Minimum timeout between retries in milliseconds (default: 1000)
    */
   minTimeout?: number;
-  
+
   /**
    * Maximum timeout between retries in milliseconds (default: 3000)
    */
   maxTimeout?: number;
-  
-  /**
-   * Randomize timeout (default: true)
-   */
-  randomize?: boolean;
+}
 ```
 
 #### Type Safety
@@ -1778,7 +1917,7 @@ interface RetryOptions {
 All clients are fully typed and work with TypeScript's type inference:
 
 ```typescript
-import { dynamodbClient } from 'awpaki/clients';
+import { dynamodbClient } from 'awpaki/clients/dynamodb';
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
 // Type is inferred from the command
@@ -1814,7 +1953,7 @@ const result = await db.execute<{ Item: User }>(
 
 ```
 src/
-├── index.ts              # Main entry point - exports all modules
+├── index.ts              # Main entry point - exports utility modules; clients use awpaki/clients/*
 ├── clients/              # AWS SDK client abstractions
 │   ├── index.ts          # Re-exports all clients
 │   ├── dynamodb/
@@ -1900,6 +2039,7 @@ This package is automatically deployed to npm via GitHub Actions. The deployment
 ### Prerequisites
 
 Before deploying, ensure you have:
+
 - Set up the `NPM_TOKEN` secret in your GitHub repository settings
 - Proper access rights to publish the package on npm
 

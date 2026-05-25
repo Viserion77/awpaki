@@ -1,13 +1,13 @@
-import { 
+import type {
   APIGatewayProxyEvent,
   APIGatewayProxyEventV2,
-  SQSEvent, 
-  SNSEvent, 
+  SQSEvent,
+  SNSEvent,
   EventBridgeEvent,
   S3Event,
   DynamoDBStreamEvent,
   AppSyncResolverEvent,
-  Context 
+  Context,
 } from 'aws-lambda';
 
 /**
@@ -20,11 +20,11 @@ export interface LogConfig {
 
 /**
  * Logs API Gateway event information for tracking and debugging
- * 
+ *
  * @param event - API Gateway proxy event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: APIGatewayProxyEvent, context: Context) => {
@@ -39,7 +39,7 @@ export function logApiGatewayEvent(
   config?: LogConfig
 ): void {
   const identifier = `${context.functionName}:${event.requestContext.requestId}`;
-  
+
   const logData = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -58,21 +58,21 @@ export function logApiGatewayEvent(
   };
 
   console.info(`Entry API Gateway ${identifier}`, logData);
-  
+
   // Log headers in debug level
   console.debug(`API Gateway Headers ${identifier}`, event.headers);
 }
 
 /**
  * Logs API Gateway V2 event information for tracking and debugging
- * 
+ *
  * Used for HTTP API (Payload Format 2.0) which has a different structure than V1.
  * In V2, properties like sourceIp and userAgent are in requestContext.http instead of requestContext.identity.
- * 
+ *
  * @param event - API Gateway proxy event V2
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: APIGatewayProxyEventV2, context: Context) => {
@@ -87,7 +87,7 @@ export function logApiGatewayEventV2(
   config?: LogConfig
 ): void {
   const identifier = `${context.functionName}:${event.requestContext.requestId}`;
-  
+
   const logData = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -107,18 +107,18 @@ export function logApiGatewayEventV2(
   };
 
   console.info(`Entry API Gateway V2 ${identifier}`, logData);
-  
+
   // Log headers in debug level
   console.debug(`API Gateway V2 Headers ${identifier}`, event.headers);
 }
 
 /**
  * Logs SQS event information for tracking and debugging
- * 
+ *
  * @param event - SQS event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: SQSEvent, context: Context) => {
@@ -127,13 +127,9 @@ export function logApiGatewayEventV2(
  * };
  * ```
  */
-export function logSqsEvent(
-  event: SQSEvent,
-  context: Context,
-  config?: LogConfig
-): void {
+export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
-  
+
   // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
@@ -163,7 +159,7 @@ export function logSqsEvent(
     };
 
     console.info(`SQS Record ${recordIdentifier}`, recordData);
-    
+
     // Log full body in debug
     console.debug(`SQS Record Full Body ${recordIdentifier}`, {
       messageId: record.messageId,
@@ -175,11 +171,11 @@ export function logSqsEvent(
 
 /**
  * Logs SNS event information for tracking and debugging
- * 
+ *
  * @param event - SNS event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: SNSEvent, context: Context) => {
@@ -188,13 +184,9 @@ export function logSqsEvent(
  * };
  * ```
  */
-export function logSnsEvent(
-  event: SNSEvent,
-  context: Context,
-  config?: LogConfig
-): void {
+export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
-  
+
   // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
@@ -224,7 +216,7 @@ export function logSnsEvent(
     };
 
     console.info(`SNS Record ${recordIdentifier}`, recordData);
-    
+
     // Log full message in debug
     console.debug(`SNS Record Full Message ${recordIdentifier}`, {
       messageId: record.Sns.MessageId,
@@ -236,11 +228,11 @@ export function logSnsEvent(
 /**
  * Logs EventBridge (CloudWatch Events) information for tracking and debugging
  * Used for scheduled events (cron) and custom events
- * 
+ *
  * @param event - EventBridge event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: EventBridgeEvent<string, any>, context: Context) => {
@@ -255,7 +247,7 @@ export function logEventBridgeEvent(
   config?: LogConfig
 ): void {
   const identifier = `${context.functionName}:${event.id}`;
-  
+
   const logData = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -273,18 +265,18 @@ export function logEventBridgeEvent(
   };
 
   console.info(`Entry EventBridge ${identifier}`, logData);
-  
+
   // Log full detail in debug
   console.debug(`EventBridge Detail ${identifier}`, event.detail);
 }
 
 /**
  * Logs S3 event information for tracking and debugging
- * 
+ *
  * @param event - S3 event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: S3Event, context: Context) => {
@@ -293,13 +285,9 @@ export function logEventBridgeEvent(
  * };
  * ```
  */
-export function logS3Event(
-  event: S3Event,
-  context: Context,
-  config?: LogConfig
-): void {
+export function logS3Event(event: S3Event, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
-  
+
   // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
@@ -339,11 +327,11 @@ export function logS3Event(
 
 /**
  * Logs DynamoDB Stream event information for tracking and debugging
- * 
+ *
  * @param event - DynamoDB Stream event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const handler = async (event: DynamoDBStreamEvent, context: Context) => {
@@ -359,7 +347,7 @@ export function logDynamoDBStreamEvent(
 ): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   const tableName = event.Records[0]?.eventSourceARN?.split('/')[1];
-  
+
   // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
@@ -390,12 +378,16 @@ export function logDynamoDBStreamEvent(
       sequenceNumber: record.dynamodb?.SequenceNumber,
       sizeBytes: record.dynamodb?.SizeBytes,
       keys: Object.keys(record.dynamodb?.Keys || {}).join(', '),
-      newImageKeys: record.dynamodb?.NewImage ? Object.keys(record.dynamodb.NewImage).join(', ') : undefined,
-      oldImageKeys: record.dynamodb?.OldImage ? Object.keys(record.dynamodb.OldImage).join(', ') : undefined,
+      newImageKeys: record.dynamodb?.NewImage
+        ? Object.keys(record.dynamodb.NewImage).join(', ')
+        : undefined,
+      oldImageKeys: record.dynamodb?.OldImage
+        ? Object.keys(record.dynamodb.OldImage).join(', ')
+        : undefined,
     };
 
     console.info(`DynamoDB Stream Record ${recordIdentifier}`, recordData);
-    
+
     // Log full data in debug
     console.debug(`DynamoDB Stream Full Data ${recordIdentifier}`, {
       eventID: record.eventID,
@@ -408,14 +400,14 @@ export function logDynamoDBStreamEvent(
 
 /**
  * Logs AppSync resolver event information for tracking and debugging
- * 
+ *
  * Works with Query, Mutation, and Field resolvers. The operation type
  * is automatically detected from event.info.parentTypeName.
- * 
+ *
  * @param event - AppSync resolver event
  * @param context - Lambda context
  * @param config - Optional logging configuration
- * 
+ *
  * @example
  * ```typescript
  * export const resolver: AppSyncResolverHandler<Args, Result> = async (event, context) => {
@@ -430,16 +422,21 @@ export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Reco
   config?: LogConfig
 ): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
-  
+
   // Extract identity info safely across different identity types
   const identity = event.identity as any;
-  const identityValue = identity?.sub || identity?.username || identity?.resolverContext || 'anonymous';
-  const identityType = !identity ? 'none' :
-    identity.sub ? 'Cognito' :
-    identity.accountId ? 'IAM' :
-    identity.resolverContext ? 'Lambda' :
-    'API_KEY';
-  
+  const identityValue =
+    identity?.sub || identity?.username || identity?.resolverContext || 'anonymous';
+  const identityType = !identity
+    ? 'none'
+    : identity.sub
+      ? 'Cognito'
+      : identity.accountId
+        ? 'IAM'
+        : identity.resolverContext
+          ? 'Lambda'
+          : 'API_KEY';
+
   const logData = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -456,7 +453,7 @@ export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Reco
   };
 
   console.info(`Entry AppSync ${identifier}`, logData);
-  
+
   // Log full arguments and source in debug
   console.debug(`AppSync Full Data ${identifier}`, {
     arguments: event.arguments,
