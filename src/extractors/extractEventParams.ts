@@ -1,14 +1,38 @@
-import type { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
+import type {
+  APIGatewayProxyEvent,
+  APIGatewayProxyEventV2,
+  AppSyncResolverEvent,
+} from 'aws-lambda';
 import { createHttpError, HttpStatus } from '../errors';
 
 /**
+ * Events {@link extractEventParams} knows how to read.
+ *
+ * The named shapes are listed explicitly because `APIGatewayProxyEventV2` (and the other
+ * `aws-lambda` interfaces) have no index signature, so they are *not* assignable to
+ * `Record<string, unknown>` — accepting only the record form would reject a payload 2.0
+ * event with TS2345. `Record<string, unknown>` stays in the union for SQS/SNS/S3/DynamoDB
+ * records and for the plain objects that `createInvokeHandler` normalises.
+ */
+export type LambdaEventLike =
+  | APIGatewayProxyEvent
+  | APIGatewayProxyEventV2
+  | AppSyncResolverEvent<any, any>
+  | Record<string, unknown>;
+
+/**
  * Valid parameter types for validation
+ *
+ * `OBJECT` and `ARRAY` are mutually exclusive: an array never satisfies `OBJECT`,
+ * and a plain object never satisfies `ARRAY`.
  */
 export enum ParameterType {
   STRING = 'string',
   NUMBER = 'number',
   BOOLEAN = 'boolean',
+  /** Plain object only — arrays and `null` are rejected */
   OBJECT = 'object',
+  /** Array only — plain objects are rejected */
   ARRAY = 'array',
 }
 
@@ -157,7 +181,7 @@ export interface EventSchema {
  */
 export function extractEventParams<T = Record<string, unknown>>(
   schema: EventSchema,
-  event: APIGatewayProxyEvent | AppSyncResolverEvent<any, any> | Record<string, unknown>
+  event: LambdaEventLike
 ): T {
   const result: Record<string, unknown> = {};
   const errors: Record<string, [number, string]> = {};
@@ -233,10 +257,18 @@ export function extractEventParams<T = Record<string, unknown>>(
 
         // Validate expected type
         if (value.expectedType) {
-          const isValid =
-            value.expectedType === ParameterType.ARRAY
-              ? Array.isArray(paramValue)
-              : typeof paramValue === value.expectedType;
+          // `typeof` alone is not enough for structural types: `typeof [] === 'object'` and
+          // `typeof null === 'object'`, so OBJECT and ARRAY need explicit, mutually exclusive checks.
+          let isValid: boolean;
+
+          if (value.expectedType === ParameterType.ARRAY) {
+            isValid = Array.isArray(paramValue);
+          } else if (value.expectedType === ParameterType.OBJECT) {
+            isValid =
+              typeof paramValue === 'object' && paramValue !== null && !Array.isArray(paramValue);
+          } else {
+            isValid = typeof paramValue === value.expectedType;
+          }
 
           if (!isValid) {
             const statusCode = value.statusCodeError || HttpStatus.UNPROCESSABLE_ENTITY;

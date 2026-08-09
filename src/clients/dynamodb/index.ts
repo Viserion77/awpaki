@@ -1,45 +1,24 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import retry from 'async-retry';
-
-/**
- * Options for retry configuration
- */
-export interface RetryOptions {
-  /**
-   * Maximum number of retries (default: 3)
-   */
-  retries?: number;
-  /**
-   * Minimum timeout between retries in milliseconds (default: 1000)
-   */
-  minTimeout?: number;
-  /**
-   * Maximum timeout between retries in milliseconds (default: 3000)
-   */
-  maxTimeout?: number;
-}
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize DynamoDB client from environment variables
 const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_DYNAMODB || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_DYNAMODB'),
 });
 
 const docClient = DynamoDBDocumentClient.from(client);
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * DynamoDB client with automatic retry logic
  *
  * @example
  * ```typescript
- * import { dynamodbClient } from 'awpaki/clients';
+ * import { dynamodbClient } from 'awpaki/clients/dynamodb';
  * import { GetCommand } from '@aws-sdk/lib-dynamodb';
  *
  * const result = await dynamodbClient.execute(
@@ -50,7 +29,7 @@ const defaultRetryOptions: RetryOptions = {
  * );
  *
  * // With custom retry options
- * const result = await dynamodbClient.execute(
+ * const retried = await dynamodbClient.execute(
  *   new GetCommand({ TableName: 'Users', Key: { id: '123' } }),
  *   { retries: 5, minTimeout: 500 }
  * );

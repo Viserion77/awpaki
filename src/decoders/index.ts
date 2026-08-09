@@ -1,3 +1,6 @@
+// `parseIntOrNaN` is intentionally absent: it is the internal coercion step shared by
+// the numeric decoders and reports failure with `NaN` instead of throwing, so it does
+// not follow the decoder contract this barrel publishes.
 export {
   trimmedString,
   trimmedLowerString,
@@ -6,6 +9,8 @@ export {
   limitedInteger,
   urlEncodedJson,
   jsonString,
+  emailString,
+  // Deprecated alias of `emailString`, kept so existing schemas keep working.
   validEmail,
   createEnum,
   stringArray,

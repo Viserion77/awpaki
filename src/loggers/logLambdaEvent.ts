@@ -1,3 +1,17 @@
+/**
+ * Entry-point loggers for the most common Lambda event sources.
+ *
+ * Every helper writes through {@link getLogger}, always passing the **object first
+ * and the message second**. That order is what makes the record land in CloudWatch
+ * as top-level, field-indexable JSON properties — `console.info(msg, obj)` would
+ * instead emit an inspected object glued to a text line, which Logs Insights cannot
+ * query by `requestId`, `messageId`, ... The logger also writes straight to
+ * `process.stdout`, avoiding the double JSON envelope `console.*` produces under
+ * Lambda Advanced Logging Controls (`AWS_LAMBDA_LOG_FORMAT=JSON`).
+ *
+ * @module loggers/logLambdaEvent
+ */
+
 import type {
   APIGatewayProxyEvent,
   APIGatewayProxyEventV2,
@@ -9,6 +23,7 @@ import type {
   AppSyncResolverEvent,
   Context,
 } from 'aws-lambda';
+import { getLogger } from './logger';
 
 /**
  * Configuration for Lambda event logging
@@ -24,6 +39,7 @@ export interface LogConfig {
  * @param event - API Gateway proxy event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -57,10 +73,10 @@ export function logApiGatewayEvent(
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry API Gateway ${identifier}`, logData);
+  getLogger().info(logData, `Entry API Gateway ${identifier}`);
 
   // Log headers in debug level
-  console.debug(`API Gateway Headers ${identifier}`, event.headers);
+  getLogger().debug(event.headers, `API Gateway Headers ${identifier}`);
 }
 
 /**
@@ -72,6 +88,7 @@ export function logApiGatewayEvent(
  * @param event - API Gateway proxy event V2
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -106,10 +123,10 @@ export function logApiGatewayEventV2(
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry API Gateway V2 ${identifier}`, logData);
+  getLogger().info(logData, `Entry API Gateway V2 ${identifier}`);
 
   // Log headers in debug level
-  console.debug(`API Gateway V2 Headers ${identifier}`, event.headers);
+  getLogger().debug(event.headers, `API Gateway V2 Headers ${identifier}`);
 }
 
 /**
@@ -118,6 +135,7 @@ export function logApiGatewayEventV2(
  * @param event - SQS event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -140,7 +158,7 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry SQS Event ${identifier}`, eventSummary);
+  getLogger().info(eventSummary, `Entry SQS Event ${identifier}`);
 
   // Log individual de cada mensagem
   for (let index = 0; index < event.Records.length; index++) {
@@ -158,14 +176,17 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
       awsRegion: record.awsRegion,
     };
 
-    console.info(`SQS Record ${recordIdentifier}`, recordData);
+    getLogger().info(recordData, `SQS Record ${recordIdentifier}`);
 
     // Log full body in debug
-    console.debug(`SQS Record Full Body ${recordIdentifier}`, {
-      messageId: record.messageId,
-      body: record.body,
-      receiptHandle: record.receiptHandle,
-    });
+    getLogger().debug(
+      {
+        messageId: record.messageId,
+        body: record.body,
+        receiptHandle: record.receiptHandle,
+      },
+      `SQS Record Full Body ${recordIdentifier}`
+    );
   }
 }
 
@@ -175,6 +196,7 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
  * @param event - SNS event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -197,7 +219,7 @@ export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfi
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry SNS Event ${identifier}`, eventSummary);
+  getLogger().info(eventSummary, `Entry SNS Event ${identifier}`);
 
   // Log individual de cada mensagem
   for (let index = 0; index < event.Records.length; index++) {
@@ -215,13 +237,16 @@ export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfi
       messageAttributes: record.Sns.MessageAttributes,
     };
 
-    console.info(`SNS Record ${recordIdentifier}`, recordData);
+    getLogger().info(recordData, `SNS Record ${recordIdentifier}`);
 
     // Log full message in debug
-    console.debug(`SNS Record Full Message ${recordIdentifier}`, {
-      messageId: record.Sns.MessageId,
-      message: record.Sns.Message,
-    });
+    getLogger().debug(
+      {
+        messageId: record.Sns.MessageId,
+        message: record.Sns.Message,
+      },
+      `SNS Record Full Message ${recordIdentifier}`
+    );
   }
 }
 
@@ -232,6 +257,7 @@ export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfi
  * @param event - EventBridge event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -264,10 +290,10 @@ export function logEventBridgeEvent(
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry EventBridge ${identifier}`, logData);
+  getLogger().info(logData, `Entry EventBridge ${identifier}`);
 
   // Log full detail in debug
-  console.debug(`EventBridge Detail ${identifier}`, event.detail);
+  getLogger().debug(event.detail, `EventBridge Detail ${identifier}`);
 }
 
 /**
@@ -276,6 +302,7 @@ export function logEventBridgeEvent(
  * @param event - S3 event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -298,7 +325,7 @@ export function logS3Event(event: S3Event, context: Context, config?: LogConfig)
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry S3 Event ${identifier}`, eventSummary);
+  getLogger().info(eventSummary, `Entry S3 Event ${identifier}`);
 
   // Log individual de cada objeto
   for (let index = 0; index < event.Records.length; index++) {
@@ -321,7 +348,7 @@ export function logS3Event(event: S3Event, context: Context, config?: LogConfig)
       sourceIp: record.requestParameters?.sourceIPAddress,
     };
 
-    console.info(`S3 Record ${recordIdentifier}`, recordData);
+    getLogger().info(recordData, `S3 Record ${recordIdentifier}`);
   }
 }
 
@@ -331,6 +358,7 @@ export function logS3Event(event: S3Event, context: Context, config?: LogConfig)
  * @param event - DynamoDB Stream event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -359,7 +387,7 @@ export function logDynamoDBStreamEvent(
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry DynamoDB Stream Event ${identifier}`, eventSummary);
+  getLogger().info(eventSummary, `Entry DynamoDB Stream Event ${identifier}`);
 
   // Log individual de cada registro
   for (let index = 0; index < event.Records.length; index++) {
@@ -386,15 +414,18 @@ export function logDynamoDBStreamEvent(
         : undefined,
     };
 
-    console.info(`DynamoDB Stream Record ${recordIdentifier}`, recordData);
+    getLogger().info(recordData, `DynamoDB Stream Record ${recordIdentifier}`);
 
     // Log full data in debug
-    console.debug(`DynamoDB Stream Full Data ${recordIdentifier}`, {
-      eventID: record.eventID,
-      keys: record.dynamodb?.Keys,
-      newImage: record.dynamodb?.NewImage,
-      oldImage: record.dynamodb?.OldImage,
-    });
+    getLogger().debug(
+      {
+        eventID: record.eventID,
+        keys: record.dynamodb?.Keys,
+        newImage: record.dynamodb?.NewImage,
+        oldImage: record.dynamodb?.OldImage,
+      },
+      `DynamoDB Stream Full Data ${recordIdentifier}`
+    );
   }
 }
 
@@ -407,6 +438,7 @@ export function logDynamoDBStreamEvent(
  * @param event - AppSync resolver event
  * @param context - Lambda context
  * @param config - Optional logging configuration
+ * @returns Nothing
  *
  * @example
  * ```typescript
@@ -452,14 +484,17 @@ export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Reco
     ...(config?.additionalData || {}),
   };
 
-  console.info(`Entry AppSync ${identifier}`, logData);
+  getLogger().info(logData, `Entry AppSync ${identifier}`);
 
   // Log full arguments and source in debug
-  console.debug(`AppSync Full Data ${identifier}`, {
-    arguments: event.arguments,
-    source: event.source,
-    requestHeaders: event.request?.headers,
-    stash: event.stash,
-    prev: event.prev?.result,
-  });
+  getLogger().debug(
+    {
+      arguments: event.arguments,
+      source: event.source,
+      requestHeaders: event.request?.headers,
+      stash: event.stash,
+      prev: event.prev?.result,
+    },
+    `AppSync Full Data ${identifier}`
+  );
 }

@@ -1,4 +1,8 @@
-import { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
+// `aws-lambda` is an optional peer dependency and this import is types only:
+// `import type` guarantees it is erased at compile time, so the emitted JavaScript
+// never requires the package — even under `isolatedModules`/`verbatimModuleSyntax`
+// or with a bundler that does not elide unused value imports.
+import type { APIGatewayProxyResult, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 
 /**
  * Base class for HTTP errors with AWS Lambda integration
@@ -12,7 +16,9 @@ export class HttpError extends Error {
   public readonly statusCode: number;
   public readonly data?: Record<string, any>;
   public readonly headers?: Record<string, string | boolean | number>;
-  private readonly lambdaMetadata: {
+  // Definite assignment: the constructor installs this through `Object.defineProperty`
+  // (see below), which TypeScript cannot see as an initialization.
+  private readonly lambdaMetadata!: {
     logStreamName?: string;
     executionEnv?: string;
     functionName?: string;
@@ -30,12 +36,22 @@ export class HttpError extends Error {
     this.data = data;
     this.headers = headers;
 
-    // Capture Lambda environment metadata
-    this.lambdaMetadata = {
-      logStreamName: process.env.AWS_LAMBDA_LOG_STREAM_NAME,
-      executionEnv: process.env.AWS_EXECUTION_ENV,
-      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-    };
+    // Capture Lambda environment metadata.
+    // `private` is erased at runtime, so a plain assignment leaves an own *enumerable*
+    // property that every structured serializer picks up — the error loggers would copy
+    // this whole object into each log line, on top of the `$x-custom-metadata` block the
+    // response body already carries. Defined non-enumerable so it stays an implementation
+    // detail; reads through `this.lambdaMetadata` are unaffected.
+    Object.defineProperty(this, 'lambdaMetadata', {
+      value: {
+        logStreamName: process.env.AWS_LAMBDA_LOG_STREAM_NAME,
+        executionEnv: process.env.AWS_EXECUTION_ENV,
+        functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
+      },
+      enumerable: false,
+      writable: false,
+      configurable: true,
+    });
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
     if (Error.captureStackTrace) {

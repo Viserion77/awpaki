@@ -8,6 +8,8 @@
  * @module decoders
  */
 
+import { isEmail } from '../validators/isEmail';
+
 /**
  * Removes whitespace and validates non-empty string
  *
@@ -79,6 +81,37 @@ export function alphanumericId(value: unknown): string {
 }
 
 /**
+ * Coerces an unknown value to a number, using `NaN` as the "not a number" sentinel
+ *
+ * Shared coercion step of the numeric decoders ({@link positiveInteger},
+ * {@link limitedInteger} and {@link optionalInteger}), so the rule lives in one place:
+ * - strings go through `parseInt(value, 10)`, so trailing garbage is tolerated
+ *   (`"12px"` → `12`) and a non numeric string yields `NaN`;
+ * - numbers are returned untouched — no truncation, so `1.5` stays `1.5`;
+ * - every other type (boolean, `null`, `undefined`, object, array, bigint, symbol)
+ *   yields `NaN`.
+ *
+ * Internal helper: it is not re-exported by the `awpaki/decoders` barrel because it
+ * signals failure with `NaN` instead of throwing, which is not the decoder contract.
+ *
+ * @param value - Input value of any type
+ * @returns The parsed number, or `NaN` when the value cannot be coerced
+ *
+ * @example
+ * ```typescript
+ * parseIntOrNaN('123'); // 123
+ * parseIntOrNaN(1.5);   // 1.5 — numbers pass through untouched
+ * parseIntOrNaN('abc'); // NaN
+ * parseIntOrNaN(true);  // NaN — only strings and numbers are coerced
+ * ```
+ */
+export function parseIntOrNaN(value: unknown): number {
+  if (typeof value === 'string') return parseInt(value, 10);
+  if (typeof value === 'number') return value;
+  return NaN;
+}
+
+/**
  * Converts value to positive integer (>= 1)
  *
  * @param value - Input value (string or number)
@@ -95,8 +128,8 @@ export function alphanumericId(value: unknown): string {
  * ```
  */
 export function positiveInteger(value: unknown): number {
-  const num = typeof value === 'string' ? parseInt(value, 10) : value;
-  if (typeof num !== 'number' || isNaN(num) || num < 1) {
+  const num = parseIntOrNaN(value);
+  if (isNaN(num) || num < 1) {
     throw new Error('Must be a positive number');
   }
   return num;
@@ -125,8 +158,8 @@ export function positiveInteger(value: unknown): number {
  */
 export function limitedInteger(min = 1, max = 1000): (value: unknown) => number {
   return function validateLimitedInteger(value: unknown): number {
-    const num = typeof value === 'string' ? parseInt(value, 10) : value;
-    if (typeof num !== 'number' || isNaN(num) || num < min || num > max) {
+    const num = parseIntOrNaN(value);
+    if (isNaN(num) || num < min || num > max) {
       throw new Error(`Must be a number between ${min} and ${max}`);
     }
     return num;
@@ -181,23 +214,59 @@ export function jsonString(value: unknown): unknown {
  * Validates and normalizes email address
  * Converts to lowercase
  *
+ * Delegates the validation to the {@link isEmail} validator instead of repeating a
+ * regex here, so decoder and validator can never disagree on what an address is.
+ *
+ * **This is stricter than before.** The previous shape `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` accepted
+ * anything with an `@` and a dot; `isEmail` enforces the RFC limits. Addresses that
+ * used to pass and now throw:
+ * - single character TLDs — `a@b.c`, `user@example.i`;
+ * - digits in the TLD — `user@example.c0m`;
+ * - labels that start or end with `-` — `user@-example.com`;
+ * - local or domain parts with consecutive/edge dots — `user..name@example.com`;
+ * - local parts over 64 chars, or whole addresses over 254 chars.
+ *
+ * Newly *accepted* (the old regex rejected them): quoted local parts with spaces
+ * (`"john doe"@example.com`) and address literals (`user@[192.168.0.1]`).
+ *
  * @param value - Email address to validate
  * @returns Lowercased email address
  * @throws Error if invalid email format
  *
  * @example
  * ```typescript
- * decoder: validEmail
+ * decoder: emailString
  * // Input: "USER@EXAMPLE.COM" → Output: "user@example.com"
  * // Invalid: "not-an-email" → throws error
+ * // Invalid: "a@b.c" → throws error (single character TLD)
  * ```
  */
-export function validEmail(value: unknown): string {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (typeof value !== 'string' || !emailRegex.test(value)) {
+export function emailString(value: unknown): string {
+  if (typeof value !== 'string' || !isEmail(value)) {
     throw new Error('Email must have a valid format');
   }
   return value.toLowerCase();
+}
+
+/**
+ * Validates and normalizes email address
+ * Converts to lowercase
+ *
+ * @deprecated Use {@link emailString} instead. Kept as a functional alias so existing
+ * schemas keep working; it will be removed only in a future major.
+ *
+ * @param value - Email address to validate
+ * @returns Lowercased email address
+ * @throws Error if invalid email format
+ *
+ * @example
+ * ```typescript
+ * decoder: validEmail // prefer: emailString
+ * // Input: "USER@EXAMPLE.COM" → Output: "user@example.com"
+ * ```
+ */
+export function validEmail(value: unknown): string {
+  return emailString(value);
 }
 
 /**
@@ -346,8 +415,10 @@ export function optionalTrimmedString(defaultValue = ''): (value: unknown) => st
  */
 export function optionalInteger(defaultValue = 0): (value: unknown) => number {
   return function decodeOptionalInteger(value: unknown): number {
+    // The falsy early-return runs *before* the coercion on purpose: unlike
+    // positiveInteger/limitedInteger, `0` and `''` resolve to the default here.
     if (!value) return defaultValue;
-    const num = typeof value === 'string' ? parseInt(value, 10) : value;
-    return typeof num === 'number' && !isNaN(num) ? num : defaultValue;
+    const num = parseIntOrNaN(value);
+    return isNaN(num) ? defaultValue : num;
   };
 }

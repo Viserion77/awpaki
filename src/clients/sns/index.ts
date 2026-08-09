@@ -1,25 +1,21 @@
 import { SNSClient } from '@aws-sdk/client-sns';
 import retry from 'async-retry';
-import type { RetryOptions } from '../dynamodb/index';
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize SNS client from environment variables
 const client = new SNSClient({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_SNS || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SNS'),
 });
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * SNS client with automatic retry logic
  *
  * @example
  * ```typescript
- * import { snsClient } from 'awpaki/clients';
+ * import { snsClient } from 'awpaki/clients/sns';
  * import { PublishCommand } from '@aws-sdk/client-sns';
  *
  * const result = await snsClient.execute(
@@ -30,7 +26,7 @@ const defaultRetryOptions: RetryOptions = {
  * );
  *
  * // With custom retry options
- * const result = await snsClient.execute(
+ * const retried = await snsClient.execute(
  *   new PublishCommand({ TopicArn: '...', Message: '...' }),
  *   { retries: 5 }
  * );

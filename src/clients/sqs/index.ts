@@ -1,25 +1,21 @@
 import { SQSClient } from '@aws-sdk/client-sqs';
 import retry from 'async-retry';
-import type { RetryOptions } from '../dynamodb/index';
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize SQS client from environment variables
 const client = new SQSClient({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_SQS || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SQS'),
 });
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * SQS client with automatic retry logic
  *
  * @example
  * ```typescript
- * import { sqsClient } from 'awpaki/clients';
+ * import { sqsClient } from 'awpaki/clients/sqs';
  * import { SendMessageCommand } from '@aws-sdk/client-sqs';
  *
  * const result = await sqsClient.execute(
@@ -30,7 +26,7 @@ const defaultRetryOptions: RetryOptions = {
  * );
  *
  * // With custom retry options
- * const result = await sqsClient.execute(
+ * const retried = await sqsClient.execute(
  *   new SendMessageCommand({ QueueUrl: '...', MessageBody: '...' }),
  *   { retries: 5, maxTimeout: 5000 }
  * );

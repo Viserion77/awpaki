@@ -1,3 +1,17 @@
+/**
+ * Per-trigger error handlers that turn an {@link HttpError} into the response shape
+ * each Lambda integration expects, and re-throw everything else.
+ *
+ * Every handler reports through {@link getLogger} instead of `console.error`. The
+ * `console` methods bypass the logger sink entirely, so any per-invocation buffering
+ * installed with `setLogSink` would drop precisely the error line — the one that
+ * matters. Going through the logger also keeps the record shape uniform: the thrown
+ * value is normalized by {@link toErrorLog}, so an `Error` keeps its stack while any
+ * other value lands under `err`, and CloudWatch Logs Insights can query one field.
+ *
+ * @module errors/handlers/handleLambdaError
+ */
+import { getLogger, toErrorLog } from '../../loggers/logger';
 import { HttpError } from '../http/HttpError';
 
 /**
@@ -55,12 +69,7 @@ export interface GenericLambdaErrorResponse {
  */
 export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse | never {
   if (error instanceof HttpError) {
-    console.error('API Gateway HttpError:', {
-      name: error.name,
-      message: error.message,
-      statusCode: error.statusCode,
-      data: error.data,
-    });
+    getLogger().error(toErrorLog(error), 'API Gateway HttpError');
     const response = error.toApiGatewayResponse();
     return {
       statusCode: response.statusCode,
@@ -69,7 +78,7 @@ export function handleApiGatewayError(error: unknown): ApiGatewayErrorResponse |
     };
   }
 
-  console.error('API Gateway Unknown Error:', error);
+  getLogger().error(toErrorLog(error), 'API Gateway Unknown Error');
   throw error;
 }
 
@@ -103,22 +112,21 @@ export function handleApiGatewayErrorV2(
   cookies?: string[]
 ): ApiGatewayErrorResponseV2 | never {
   if (error instanceof HttpError) {
-    console.error('API Gateway V2 HttpError:', {
-      name: error.name,
-      message: error.message,
-      statusCode: error.statusCode,
-      data: error.data,
-    });
+    getLogger().error(toErrorLog(error), 'API Gateway V2 HttpError');
     const response = error.toApiGatewayResponseV2(undefined, cookies);
+    // `APIGatewayProxyStructuredResultV2` declares every field optional, so the three
+    // values below are filled in with real defaults instead of non-null assertions:
+    // a subclass overriding `toApiGatewayResponseV2` may legitimately return a
+    // partial response, and `ApiGatewayErrorResponseV2` promises them to be present.
     return {
-      statusCode: response.statusCode!,
-      headers: response.headers!,
-      body: response.body!,
+      statusCode: response.statusCode ?? error.statusCode,
+      headers: (response.headers ?? {}) as Record<string, string | boolean | number>,
+      body: response.body ?? '',
       ...(response.cookies && { cookies: response.cookies }),
     };
   }
 
-  console.error('API Gateway V2 Unknown Error:', error);
+  getLogger().error(toErrorLog(error), 'API Gateway V2 Unknown Error');
   throw error;
 }
 
@@ -148,16 +156,11 @@ export function handleApiGatewayErrorV2(
  */
 export function handleGenericError(error: unknown): GenericLambdaErrorResponse | never {
   if (error instanceof HttpError) {
-    console.error('Lambda HttpError:', {
-      name: error.name,
-      message: error.message,
-      statusCode: error.statusCode,
-      data: error.data,
-    });
+    getLogger().error(toErrorLog(error), 'Lambda HttpError');
     return error.toGenericResponse();
   }
 
-  console.error('Lambda Unknown Error:', error);
+  getLogger().error(toErrorLog(error), 'Lambda Unknown Error');
   throw error;
 }
 
@@ -218,12 +221,7 @@ export const handleDynamoDBStreamError = handleGenericError;
  */
 export function handleAppSyncError(error: unknown): never {
   if (error instanceof HttpError) {
-    console.error('AppSync HttpError:', {
-      name: error.name,
-      message: error.message,
-      statusCode: error.statusCode,
-      data: error.data,
-    });
+    getLogger().error(toErrorLog(error), 'AppSync HttpError');
   }
 
   // AppSync always expects errors to be thrown

@@ -1,24 +1,31 @@
 import { APIGatewayClient } from '@aws-sdk/client-api-gateway';
 import retry from 'async-retry';
-import type { RetryOptions } from '../dynamodb/index';
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize API Gateway client from environment variables
 const client = new APIGatewayClient({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_API_GATEWAY || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_API_GATEWAY'),
 });
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * API Gateway client with automatic retry logic.
  *
  * Import this client directly from awpaki/clients/apigateway when you want
  * to install only this service's optional peer dependencies.
+ *
+ * @example
+ * ```typescript
+ * import { apiGatewayClient } from 'awpaki/clients/apigateway';
+ * import { GetRestApisCommand } from '@aws-sdk/client-api-gateway';
+ *
+ * const result = await apiGatewayClient.execute(new GetRestApisCommand({}));
+ *
+ * // With custom retry options
+ * const retried = await apiGatewayClient.execute(new GetRestApisCommand({}), { retries: 5 });
+ * ```
  */
 export const apiGatewayClient = {
   /**

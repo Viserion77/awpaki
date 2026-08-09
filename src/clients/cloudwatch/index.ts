@@ -1,24 +1,36 @@
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import retry from 'async-retry';
-import type { RetryOptions } from '../dynamodb/index';
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize CloudWatch client from environment variables
 const client = new CloudWatchClient({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_CLOUDWATCH || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_CLOUDWATCH'),
 });
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * CloudWatch client with automatic retry logic.
  *
  * Import this client directly from awpaki/clients/cloudwatch when you want
  * to install only this service's optional peer dependencies.
+ *
+ * @example
+ * ```typescript
+ * import { cloudWatchClient } from 'awpaki/clients/cloudwatch';
+ * import { PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
+ *
+ * const command = new PutMetricDataCommand({
+ *   Namespace: 'MyApp',
+ *   MetricData: [{ MetricName: 'Orders', Value: 1 }],
+ * });
+ *
+ * const result = await cloudWatchClient.execute(command);
+ *
+ * // With custom retry options
+ * const retried = await cloudWatchClient.execute(command, { retries: 5 });
+ * ```
  */
 export const cloudWatchClient = {
   /**

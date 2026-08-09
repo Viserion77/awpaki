@@ -1,4 +1,4 @@
-import { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
+import type { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
 import { extractEventParams, EventSchema, ParameterType } from './extractEventParams';
 import { Unauthorized, UnprocessableEntity, BadRequest, HttpStatus } from '../errors';
 
@@ -337,6 +337,147 @@ describe('extractEventParams', () => {
       expect(() => {
         extractEventParams(schema, event);
       }).toThrow('Age must be a number');
+    });
+  });
+
+  describe('OBJECT vs ARRAY type validation', () => {
+    const objectSchema: EventSchema = {
+      body: {
+        metadata: {
+          label: 'Metadata',
+          expectedType: ParameterType.OBJECT,
+          required: true,
+        },
+      },
+    };
+
+    const arraySchema: EventSchema = {
+      body: {
+        metadata: {
+          label: 'Metadata',
+          expectedType: ParameterType.ARRAY,
+          required: true,
+        },
+      },
+    };
+
+    const eventWith = (metadata: unknown): APIGatewayProxyEvent =>
+      createMockEvent({ body: JSON.stringify({ metadata }) });
+
+    it('should reject a non-empty array when OBJECT is expected', () => {
+      expect(() => extractEventParams(objectSchema, eventWith([1, 2, 3]))).toThrow(
+        UnprocessableEntity
+      );
+      expect(() => extractEventParams(objectSchema, eventWith([1, 2, 3]))).toThrow(
+        'Metadata must be of type object'
+      );
+    });
+
+    it('should reject an empty array when OBJECT is expected', () => {
+      expect(() => extractEventParams(objectSchema, eventWith([]))).toThrow(UnprocessableEntity);
+    });
+
+    it('should accept a plain object when OBJECT is expected', () => {
+      const result = extractEventParams<{ metadata: Record<string, unknown> }>(
+        objectSchema,
+        eventWith({ a: 1 })
+      );
+
+      expect(result.metadata).toEqual({ a: 1 });
+      expect(Array.isArray(result.metadata)).toBe(false);
+    });
+
+    it('should accept an empty plain object when OBJECT is expected', () => {
+      const result = extractEventParams<{ metadata: Record<string, unknown> }>(
+        objectSchema,
+        eventWith({})
+      );
+
+      expect(result.metadata).toEqual({});
+    });
+
+    it('should reject a string when OBJECT is expected', () => {
+      expect(() => extractEventParams(objectSchema, eventWith('x'))).toThrow(UnprocessableEntity);
+    });
+
+    it('should reject a number when OBJECT is expected', () => {
+      expect(() => extractEventParams(objectSchema, eventWith(42))).toThrow(UnprocessableEntity);
+    });
+
+    it('should reject a plain object when ARRAY is expected', () => {
+      expect(() => extractEventParams(arraySchema, eventWith({ a: 1 }))).toThrow(
+        UnprocessableEntity
+      );
+      expect(() => extractEventParams(arraySchema, eventWith({ a: 1 }))).toThrow(
+        'Metadata must be of type array'
+      );
+    });
+
+    it('should accept an array when ARRAY is expected', () => {
+      const result = extractEventParams<{ metadata: unknown[] }>(arraySchema, eventWith([1]));
+
+      expect(result.metadata).toEqual([1]);
+    });
+
+    it('should accept an empty array when ARRAY is expected', () => {
+      const result = extractEventParams<{ metadata: unknown[] }>(arraySchema, eventWith([]));
+
+      expect(result.metadata).toEqual([]);
+    });
+
+    it('should honor custom wrongTypeMessage and statusCodeError for arrays sent as OBJECT', () => {
+      const schema: EventSchema = {
+        body: {
+          metadata: {
+            label: 'Metadata',
+            expectedType: ParameterType.OBJECT,
+            required: true,
+            wrongTypeMessage: 'Metadata must be a plain object, not a list',
+            statusCodeError: HttpStatus.BAD_REQUEST,
+          },
+        },
+      };
+
+      expect(() => extractEventParams(schema, eventWith([1, 2, 3]))).toThrow(BadRequest);
+      expect(() => extractEventParams(schema, eventWith([1, 2, 3]))).toThrow(
+        'Metadata must be a plain object, not a list'
+      );
+    });
+
+    it('should treat a null value as missing rather than a type error', () => {
+      const optionalSchema: EventSchema = {
+        body: {
+          metadata: {
+            label: 'Metadata',
+            expectedType: ParameterType.OBJECT,
+            default: { fallback: true },
+          },
+        },
+      };
+
+      const result = extractEventParams<{ metadata: Record<string, unknown> }>(
+        optionalSchema,
+        eventWith(null)
+      );
+
+      expect(result.metadata).toEqual({ fallback: true });
+    });
+
+    it('should not run the decoder when an array fails OBJECT validation', () => {
+      const decoder = jest.fn((value: unknown) => value);
+      const schema: EventSchema = {
+        body: {
+          metadata: {
+            label: 'Metadata',
+            expectedType: ParameterType.OBJECT,
+            required: true,
+            decoder,
+          },
+        },
+      };
+
+      expect(() => extractEventParams(schema, eventWith([1, 2, 3]))).toThrow(UnprocessableEntity);
+      expect(decoder).not.toHaveBeenCalled();
     });
   });
 

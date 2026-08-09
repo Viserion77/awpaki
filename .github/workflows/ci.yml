@@ -30,12 +30,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run linter (if available)
-        run: npm run lint --if-present
-        continue-on-error: true
+      - name: Run linter
+        run: npm run lint
 
+      - name: Check formatting
+        run: npm run format:check
+
+      # Runs with --coverage so the coverageThreshold gate in jest.config.js is
+      # actually enforced; plain `npm test` collects no coverage and would skip it.
       - name: Run tests
-        run: npm test
+        run: npm run test:coverage
 
       - name: Build project
         run: npm run build
@@ -48,3 +52,10 @@ jobs:
           fi
           echo "✅ Build completed successfully"
           ls -la dist/
+
+      # The jest suite runs against src/, where neither `files` nor `exports` exists, so it
+      # cannot catch a broken subpath map or a root barrel that drags in the optional AWS
+      # peers — the two defects that shipped as 1.4.1. This packs the real tarball and
+      # exercises it from a project with no AWS SDK installed.
+      - name: Verify published package
+        run: node scripts/verify-package.js

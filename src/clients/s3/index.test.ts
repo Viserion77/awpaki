@@ -41,3 +41,84 @@ describe('s3Client', () => {
     ).rejects.toThrow();
   });
 });
+
+/* eslint-disable @typescript-eslint/no-require-imports -- the client is built at import time */
+type CapturedConfig = { region?: string; endpoint?: string };
+
+const CONTROLLED_ENV_VARS = [
+  'AWS_REGION',
+  'AWS_DEFAULT_REGION',
+  'AWS_ENDPOINT_URL',
+  'AWS_ENDPOINT_URL_S3',
+];
+
+/**
+ * Re-imports the module with the SDK constructor stubbed out, so the configuration the
+ * client is built with can be inspected.
+ */
+function loadWithStubbedSdk(): CapturedConfig {
+  let captured: CapturedConfig = {};
+
+  jest.doMock('@aws-sdk/client-s3', () => ({
+    S3Client: class {
+      constructor(config: CapturedConfig) {
+        captured = config;
+      }
+    },
+  }));
+
+  require('./index');
+
+  return captured;
+}
+
+describe('s3Client configuration', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    jest.resetModules();
+    process.env = { ...originalEnv };
+
+    for (const name of CONTROLLED_ENV_VARS) {
+      delete process.env[name];
+    }
+  });
+
+  afterEach(() => {
+    jest.dontMock('@aws-sdk/client-s3');
+    process.env = originalEnv;
+    jest.resetModules();
+  });
+
+  it('prefers the service specific endpoint override', () => {
+    process.env.AWS_ENDPOINT_URL_S3 = 'http://s3.local';
+    process.env.AWS_ENDPOINT_URL = 'http://global.local';
+
+    expect(loadWithStubbedSdk().endpoint).toBe('http://s3.local');
+  });
+
+  it('falls back to the global endpoint override', () => {
+    process.env.AWS_ENDPOINT_URL = 'http://global.local';
+
+    expect(loadWithStubbedSdk().endpoint).toBe('http://global.local');
+  });
+
+  it('leaves the endpoint and the region undefined when nothing is configured', () => {
+    const config = loadWithStubbedSdk();
+
+    expect(config.endpoint).toBeUndefined();
+    expect(config.region).toBeUndefined();
+  });
+
+  it('resolves the region from AWS_REGION, then AWS_DEFAULT_REGION', () => {
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.AWS_DEFAULT_REGION = 'sa-east-1';
+
+    expect(loadWithStubbedSdk().region).toBe('us-east-1');
+
+    jest.resetModules();
+    delete process.env.AWS_REGION;
+
+    expect(loadWithStubbedSdk().region).toBe('sa-east-1');
+  });
+});

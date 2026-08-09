@@ -1,25 +1,21 @@
 import { S3Client } from '@aws-sdk/client-s3';
 import retry from 'async-retry';
-import type { RetryOptions } from '../dynamodb/index';
+import { defaultRetryOptions } from '../../constants/default-retry-options';
+import { resolveEndpoint, resolveRegion } from '../../environment';
+import type { RetryOptions } from '../index.types';
 
 // Initialize S3 client from environment variables
 const client = new S3Client({
-  region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION,
-  endpoint: process.env.AWS_ENDPOINT_URL_S3 || process.env.AWS_ENDPOINT_URL,
+  region: resolveRegion(),
+  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_S3'),
 });
-
-const defaultRetryOptions: RetryOptions = {
-  retries: 3,
-  minTimeout: 1000,
-  maxTimeout: 3000,
-};
 
 /**
  * S3 client with automatic retry logic
  *
  * @example
  * ```typescript
- * import { s3Client } from 'awpaki/clients';
+ * import { s3Client } from 'awpaki/clients/s3';
  * import { GetObjectCommand } from '@aws-sdk/client-s3';
  *
  * const result = await s3Client.execute(
@@ -30,7 +26,7 @@ const defaultRetryOptions: RetryOptions = {
  * );
  *
  * // With custom retry options
- * const result = await s3Client.execute(
+ * const retried = await s3Client.execute(
  *   new GetObjectCommand({ Bucket: 'my-bucket', Key: 'file.json' }),
  *   { retries: 5 }
  * );

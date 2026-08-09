@@ -1,6 +1,6 @@
 {
   "name": "awpaki",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "AWS Patterns Kit - TypeScript utility library with AWS SDK clients, Lambda helpers, error handling, and data validation",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -49,6 +49,31 @@
       "types": "./dist/decoders/index.d.ts",
       "import": "./dist/decoders/index.js",
       "require": "./dist/decoders/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js",
+      "require": "./dist/utils/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "import": "./dist/constants/index.js",
+      "require": "./dist/constants/index.js"
+    },
+    "./environment": {
+      "types": "./dist/environment/index.d.ts",
+      "import": "./dist/environment/index.js",
+      "require": "./dist/environment/index.js"
+    },
+    "./handlers": {
+      "types": "./dist/handlers/index.d.ts",
+      "import": "./dist/handlers/index.js",
+      "require": "./dist/handlers/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js",
+      "require": "./dist/testing/index.js"
     },
     "./clients/dynamodb": {
       "types": "./dist/clients/dynamodb/index.d.ts",
@@ -138,6 +163,21 @@
       "decoders": [
         "dist/decoders/index.d.ts"
       ],
+      "utils": [
+        "dist/utils/index.d.ts"
+      ],
+      "constants": [
+        "dist/constants/index.d.ts"
+      ],
+      "environment": [
+        "dist/environment/index.d.ts"
+      ],
+      "handlers": [
+        "dist/handlers/index.d.ts"
+      ],
+      "testing": [
+        "dist/testing/index.d.ts"
+      ],
       "clients/dynamodb": [
         "dist/clients/dynamodb/index.d.ts"
       ],
@@ -180,11 +220,13 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "format": "prettier . --write",
-    "format:check": "prettier . --check",
+    "format": "prettier --write \"src/**/*.ts\" \"*.{js,mjs,json}\" \".github/**/*.yml\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"*.{js,mjs,json}\" \".github/**/*.yml\"",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prepublishOnly": "npm run build && npm test"
+    "test:coverage": "jest --coverage",
+    "prepublishOnly": "npm run build && npm test",
+    "test:package": "npm run build && node scripts/verify-package.js"
   },
   "keywords": [
     "aws",
@@ -220,6 +262,9 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "dependencies": {
+    "@types/aws-lambda": "^8.10.159"
+  },
   "devDependencies": {
     "@aws-sdk/client-api-gateway": "^3.948.0",
     "@aws-sdk/client-cloudwatch": "^3.948.0",
@@ -237,7 +282,6 @@
     "@aws-sdk/lib-dynamodb": "^3.948.0",
     "@eslint/js": "^10.0.1",
     "@types/async-retry": "^1.4.9",
-    "@types/aws-lambda": "^8.10.159",
     "@types/jest": "^29.5.14",
     "@types/node": "^18.0.0",
     "async-retry": "^1.3.3",
@@ -265,8 +309,7 @@
     "@aws-sdk/client-timestream-query": "^3.948.0",
     "@aws-sdk/client-timestream-write": "^3.948.0",
     "@aws-sdk/lib-dynamodb": "^3.948.0",
-    "async-retry": "^1.3.3",
-    "aws-lambda": "^1.0.7"
+    "async-retry": "^1.3.3"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-dynamodb": {
@@ -288,9 +331,6 @@
       "optional": true
     },
     "async-retry": {
-      "optional": true
-    },
-    "aws-lambda": {
       "optional": true
     },
     "@aws-sdk/client-api-gateway": {

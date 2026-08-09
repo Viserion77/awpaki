@@ -2,10 +2,12 @@ import {
   trimmedString,
   trimmedLowerString,
   alphanumericId,
+  parseIntOrNaN,
   positiveInteger,
   limitedInteger,
   urlEncodedJson,
   jsonString,
+  emailString,
   validEmail,
   createEnum,
   stringArray,
@@ -14,6 +16,18 @@ import {
   optionalTrimmedString,
   optionalInteger,
 } from './decoders';
+
+/**
+ * Runs a decoder and records the outcome, so two decoders can be compared on both
+ * the returned value and the thrown message.
+ */
+function capture(run: () => unknown): { value: unknown } | { error: string } {
+  try {
+    return { value: run() };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+}
 
 describe('decoders', () => {
   describe('trimmedString', () => {
@@ -59,6 +73,45 @@ describe('decoders', () => {
     });
   });
 
+  describe('parseIntOrNaN', () => {
+    it('should parse numeric strings in base 10', () => {
+      expect(parseIntOrNaN('123')).toBe(123);
+      expect(parseIntOrNaN('-7')).toBe(-7);
+      expect(parseIntOrNaN('0')).toBe(0);
+      expect(parseIntOrNaN('  42  ')).toBe(42);
+      expect(parseIntOrNaN('08')).toBe(8);
+    });
+
+    it('should stop at the first non numeric character, like parseInt', () => {
+      expect(parseIntOrNaN('12px')).toBe(12);
+      expect(parseIntOrNaN('3.9')).toBe(3);
+    });
+
+    it('should return numbers untouched, without truncating', () => {
+      expect(parseIntOrNaN(456)).toBe(456);
+      expect(parseIntOrNaN(1.5)).toBe(1.5);
+      expect(parseIntOrNaN(-2.25)).toBe(-2.25);
+      expect(parseIntOrNaN(Infinity)).toBe(Infinity);
+    });
+
+    it('should return NaN for non numeric strings', () => {
+      expect(parseIntOrNaN('abc')).toBeNaN();
+      expect(parseIntOrNaN('')).toBeNaN();
+      expect(parseIntOrNaN('px12')).toBeNaN();
+    });
+
+    it('should return NaN for every other type', () => {
+      expect(parseIntOrNaN(null)).toBeNaN();
+      expect(parseIntOrNaN(undefined)).toBeNaN();
+      expect(parseIntOrNaN(true)).toBeNaN();
+      expect(parseIntOrNaN(false)).toBeNaN();
+      expect(parseIntOrNaN({})).toBeNaN();
+      expect(parseIntOrNaN([5])).toBeNaN();
+      expect(parseIntOrNaN(10n)).toBeNaN();
+      expect(parseIntOrNaN(NaN)).toBeNaN();
+    });
+  });
+
   describe('positiveInteger', () => {
     it('should convert string to positive integer', () => {
       expect(positiveInteger('123')).toBe(123);
@@ -74,6 +127,22 @@ describe('decoders', () => {
 
     it('should throw error for invalid input', () => {
       expect(() => positiveInteger('abc')).toThrow('Must be a positive number');
+    });
+
+    // Behaviour locked before the parseIntOrNaN extraction: it must stay identical.
+    it('should throw error for non string, non number input', () => {
+      expect(() => positiveInteger(true)).toThrow('Must be a positive number');
+      expect(() => positiveInteger(null)).toThrow('Must be a positive number');
+      expect(() => positiveInteger(undefined)).toThrow('Must be a positive number');
+      expect(() => positiveInteger({})).toThrow('Must be a positive number');
+      expect(() => positiveInteger(['1'])).toThrow('Must be a positive number');
+      expect(() => positiveInteger(NaN)).toThrow('Must be a positive number');
+    });
+
+    it('should keep the historical parseInt tolerance and pass floats through', () => {
+      expect(positiveInteger('12px')).toBe(12);
+      expect(positiveInteger('3.9')).toBe(3);
+      expect(positiveInteger(1.5)).toBe(1.5);
     });
   });
 
@@ -103,6 +172,30 @@ describe('decoders', () => {
       expect(decoder('500')).toBe(500);
       expect(() => decoder('0')).toThrow('Must be a number between 1 and 1000');
       expect(() => decoder('1001')).toThrow('Must be a number between 1 and 1000');
+    });
+
+    // Behaviour locked before the parseIntOrNaN extraction: it must stay identical.
+    it('should throw error for non string, non number input', () => {
+      const decoder = limitedInteger(1, 10);
+      expect(() => decoder(true)).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder(null)).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder(undefined)).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder({})).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder(['5'])).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder(NaN)).toThrow('Must be a number between 1 and 10');
+      expect(() => decoder('abc')).toThrow('Must be a number between 1 and 10');
+    });
+
+    it('should keep the historical parseInt tolerance and pass floats through', () => {
+      const decoder = limitedInteger(1, 10);
+      expect(decoder('7items')).toBe(7);
+      expect(decoder(2.5)).toBe(2.5);
+    });
+
+    it('should accept zero when the range allows it, unlike optionalInteger', () => {
+      const decoder = limitedInteger(0, 10);
+      expect(decoder(0)).toBe(0);
+      expect(decoder('0')).toBe(0);
     });
   });
 
@@ -145,8 +238,66 @@ describe('decoders', () => {
     });
   });
 
-  describe('validEmail', () => {
+  describe('emailString', () => {
     it('should accept valid email', () => {
+      expect(emailString('TEST@EXAMPLE.COM')).toBe('test@example.com');
+      expect(emailString('user@domain.com')).toBe('user@domain.com');
+      expect(emailString('first.last@company.co.uk')).toBe('first.last@company.co.uk');
+    });
+
+    it('should accept the RFC shapes the old regex rejected', () => {
+      expect(emailString('user.name+tag@example.com')).toBe('user.name+tag@example.com');
+      expect(emailString('"john doe"@example.com')).toBe('"john doe"@example.com');
+      expect(emailString('user@[192.168.0.1]')).toBe('user@[192.168.0.1]');
+    });
+
+    it('should throw error for invalid email', () => {
+      expect(() => emailString('not-an-email')).toThrow('Email must have a valid format');
+      expect(() => emailString('missing@domain')).toThrow('Email must have a valid format');
+      expect(() => emailString('@domain.com')).toThrow('Email must have a valid format');
+    });
+
+    // Stricter than the old /^[^\s@]+@[^\s@]+\.[^\s@]+$/: these used to be accepted.
+    it('should now reject addresses the weak regex used to accept', () => {
+      expect(() => emailString('a@b.c')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@example.i')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@example.c0m')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@-example.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@example-.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('user..name@example.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('.user@example.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('user.@example.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@example..com')).toThrow('Email must have a valid format');
+    });
+
+    it('should reject addresses beyond the RFC length limits', () => {
+      const longLocal = `${'a'.repeat(65)}@example.com`;
+      expect(() => emailString(longLocal)).toThrow('Email must have a valid format');
+
+      // Every label is legal on its own; only the total length is over 254.
+      const label = 'b'.repeat(60);
+      const longAddress = `${'a'.repeat(64)}@${label}.${label}.${label}.${label}.com`;
+      expect(longAddress.length).toBeGreaterThan(254);
+      expect(() => emailString(longAddress)).toThrow('Email must have a valid format');
+      expect(emailString(`a@${label}.${label}.${label}.${label}.com`)).toContain('@');
+    });
+
+    it('should reject untrimmed values, it never trims', () => {
+      expect(() => emailString(' user@example.com')).toThrow('Email must have a valid format');
+      expect(() => emailString('user@example.com ')).toThrow('Email must have a valid format');
+    });
+
+    it('should throw error for non-string input', () => {
+      expect(() => emailString(null)).toThrow('Email must have a valid format');
+      expect(() => emailString(undefined)).toThrow('Email must have a valid format');
+      expect(() => emailString(123)).toThrow('Email must have a valid format');
+      expect(() => emailString({})).toThrow('Email must have a valid format');
+      expect(() => emailString(['user@example.com'])).toThrow('Email must have a valid format');
+    });
+  });
+
+  describe('validEmail (deprecated alias)', () => {
+    it('should still be exported and keep the documented behaviour', () => {
       expect(validEmail('TEST@EXAMPLE.COM')).toBe('test@example.com');
       expect(validEmail('user@domain.com')).toBe('user@domain.com');
       expect(validEmail('first.last@company.co.uk')).toBe('first.last@company.co.uk');
@@ -156,6 +307,30 @@ describe('decoders', () => {
       expect(() => validEmail('not-an-email')).toThrow('Email must have a valid format');
       expect(() => validEmail('missing@domain')).toThrow('Email must have a valid format');
       expect(() => validEmail('@domain.com')).toThrow('Email must have a valid format');
+    });
+
+    it('should be strict like emailString, so a@b.c now throws', () => {
+      expect(() => validEmail('a@b.c')).toThrow('Email must have a valid format');
+    });
+
+    it('should behave exactly like emailString for every sample', () => {
+      const samples: unknown[] = [
+        'TEST@EXAMPLE.COM',
+        'user.name+tag@example.com',
+        '"john doe"@example.com',
+        'user@[192.168.0.1]',
+        'a@b.c',
+        'not-an-email',
+        ' user@example.com',
+        null,
+        123,
+      ];
+
+      samples.forEach((sample) => {
+        const alias = capture(() => validEmail(sample));
+        const canonical = capture(() => emailString(sample));
+        expect(alias).toEqual(canonical);
+      });
     });
   });
 
@@ -273,6 +448,39 @@ describe('decoders', () => {
     it('should use zero as default', () => {
       const decoder = optionalInteger();
       expect(decoder('invalid')).toBe(0);
+    });
+
+    // Behaviour locked before the parseIntOrNaN extraction: the falsy early-return runs
+    // BEFORE the coercion, so 0, '0'-like falsy values and '' differ from the other two
+    // numeric decoders. Do not uniformise.
+    it('should return the default for falsy input, including 0 and false', () => {
+      const decoder = optionalInteger(10);
+      expect(decoder(0)).toBe(10);
+      expect(decoder('')).toBe(10);
+      expect(decoder(false)).toBe(10);
+      expect(decoder(NaN)).toBe(10);
+      expect(decoder(undefined)).toBe(10);
+      expect(decoder(null)).toBe(10);
+    });
+
+    it('should still parse the truthy string "0"', () => {
+      const decoder = optionalInteger(10);
+      expect(decoder('0')).toBe(0);
+    });
+
+    it('should return the default for truthy non numeric input', () => {
+      const decoder = optionalInteger(10);
+      expect(decoder(true)).toBe(10);
+      expect(decoder({})).toBe(10);
+      expect(decoder([])).toBe(10);
+      expect(decoder(['5'])).toBe(10);
+    });
+
+    it('should keep the historical parseInt tolerance and pass floats through', () => {
+      const decoder = optionalInteger(10);
+      expect(decoder('12px')).toBe(12);
+      expect(decoder(1.5)).toBe(1.5);
+      expect(decoder(-3)).toBe(-3);
     });
   });
 });
