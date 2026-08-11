@@ -54,7 +54,7 @@ import { BadRequest } from '../errors';
  *   const invalid = parseJsonBody<object>('invalid json');
  * } catch (error) {
  *   if (error instanceof BadRequest) {
- *     return error.toLambdaResponse();
+ *     return error.toApiGatewayResponse();
  *   }
  * }
  * ```

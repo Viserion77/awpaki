@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Package-level smoke test: NOVO-4 of improvements.md.
+ * Package-level smoke test.
  *
  * The jest suite runs against `src/`, where neither `files` nor `exports` exists — it
  * therefore cannot catch the two defects that shipped as awpaki 1.4.1 (a root barrel that

@@ -22,7 +22,7 @@ export type { CreateInvokeHandlerOptions, InvokeHandlerInput } from './createInv
 export { createSqsHandler } from './createSqsHandler';
 export type { CreateSqsHandlerOptions, SqsHandlerInput } from './createSqsHandler';
 
-// Seam for the per-invocation log buffer (FEAT-2). Handlers run unwrapped until a
+// Seam for the per-invocation log buffer. Handlers run unwrapped until a
 // wrapper is registered, so the factories never depend on the collector module.
 export {
   applyLogCollector,

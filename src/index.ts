@@ -25,7 +25,7 @@ export * from './handlers';
 // Test helpers (builders for API Gateway events and Lambda contexts) are deliberately
 // NOT re-exported here. They are scaffolding for a consumer's test suite, and the root
 // barrel is what production code imports; they live under the `awpaki/testing` subpath
-// only, as FEAT-13 of improvements.md specifies.
+// only.
 
 // Export all utils
 export * from './utils';

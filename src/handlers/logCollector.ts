@@ -7,7 +7,7 @@
  * wrapper sees every line the invocation produces, including the error one.
  *
  * The wrapper itself is **not** implemented here. `src/loggers/runtime-log-collector`
- * (FEAT-2) is the intended provider of `withRuntimeLogCollector`, but the factories
+ * is the intended provider of `withRuntimeLogCollector`, but the factories
  * must not depend on it: a handler must keep working when no collector is installed
  * (cold path, unit tests, consumers that ship their own buffering). So the collector
  * is a plain function reference, registered once with {@link setHandlerLogCollector}

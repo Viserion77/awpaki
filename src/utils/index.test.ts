@@ -40,8 +40,8 @@ describe('utils barrel', () => {
   });
 
   it('should not export password encryption helpers', () => {
-    // Deliberate exclusion: the ported implementation used a fixed IV, and password
-    // cryptography is not an AWS pattern. See improvements.md §4 (FEAT-11).
+    // Deliberate exclusion: the implementation on offer used a fixed IV, and password
+    // cryptography is not an AWS pattern. See docs/roadmap.md.
     expect(utils).not.toHaveProperty('encryptPassword');
     expect(utils).not.toHaveProperty('decryptPassword');
   });
