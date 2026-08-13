@@ -1,5 +1,5 @@
-import { parseJsonBody } from './parseJsonBody';
-import { BadRequest } from '../errors';
+import { parseJsonBody } from './parseJsonBody.js';
+import { BadRequest } from '../errors/index.js';
 
 describe('parseJsonBody', () => {
   describe('successful parsing', () => {
@@ -122,10 +122,30 @@ describe('parseJsonBody', () => {
       expect(() => parseJsonBody<object>(singleQuotes)).toThrow(BadRequest);
     });
 
-    it('should throw BadRequest with descriptive message', () => {
+    it('should throw BadRequest with a descriptive message', () => {
       const invalidJson = 'not json at all';
 
-      expect(() => parseJsonBody<object>(invalidJson)).toThrow(/Invalid JSON format:/);
+      expect(() => parseJsonBody<object>(invalidJson)).toThrow('Invalid JSON format');
+    });
+
+    // The parser's own message quotes a fragment of the input ("Unexpected token }..."), and
+    // this error is serialized into a response, so the fragment would be echoed to whoever
+    // sent it. It travels as `cause`, which only the log serializer reads.
+    it('should keep the payload fragment out of the message and carry it as cause', () => {
+      let thrown: unknown;
+      try {
+        parseJsonBody<object>('{"secret": "s3cr3t", }');
+      } catch (error) {
+        thrown = error;
+      }
+
+      const error = thrown as BadRequest & { cause?: Error };
+      expect(error.message).toBe('Invalid JSON format');
+      expect(error.message).not.toContain('s3cr3t');
+      expect(error.cause).toBeInstanceOf(SyntaxError);
+      expect(JSON.parse(error.toApiGatewayResponse().body)).toEqual({
+        message: 'Invalid JSON format',
+      });
     });
   });
 

@@ -1,10 +1,10 @@
 import type { Context } from 'aws-lambda';
-import { createInvokeHandler, normalizeInvokePayload } from './createInvokeHandler';
-import type { CreateInvokeHandlerOptions, InvokeHandlerInput } from './createInvokeHandler';
-import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector';
-import { BadRequest, Forbidden, HttpStatus, NotFound } from '../errors';
-import { ParameterType } from '../extractors';
-import { resetLogger, setLogger } from '../loggers';
+import { createInvokeHandler, normalizeInvokePayload } from './createInvokeHandler.js';
+import type { CreateInvokeHandlerOptions, InvokeHandlerInput } from './createInvokeHandler.js';
+import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector.js';
+import { BadRequest, Forbidden, HttpStatus, NotFound } from '../errors/index.js';
+import { ParameterType } from '../extractors/index.js';
+import { resetLogger, setLogger } from '../loggers/index.js';
 
 type LogCall = [any, string | undefined];
 
@@ -229,6 +229,7 @@ describe('createInvokeHandler', () => {
 
       expect(result).toEqual({
         error: 'UnprocessableEntity',
+        code: 'unprocessable_entity',
         message: 'User ID is required',
         statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
         data: { errors: { userId: [HttpStatus.UNPROCESSABLE_ENTITY, 'User ID is required'] } },

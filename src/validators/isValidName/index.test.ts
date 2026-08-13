@@ -1,4 +1,4 @@
-import { isValidName } from './index';
+import { isValidName } from './index.js';
 
 describe('isValidName', () => {
   it('should accept single words made of letters', () => {

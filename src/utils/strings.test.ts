@@ -4,7 +4,7 @@ import {
   onlyDigits,
   removeSpecialCharacters,
   stringToArray,
-} from './strings';
+} from './strings.js';
 
 describe('kebabCaseToCamelCase', () => {
   it('should convert kebab-case to camelCase', () => {

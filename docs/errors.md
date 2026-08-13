@@ -20,7 +20,9 @@ throw new UnprocessableEntity('Validation failed', {
 });
 ```
 
-Every class extends `HttpError` and takes `(message, data?, headers?)`:
+Every class extends `HttpError` and takes `(message?, data?, headers?, options?)`, or a single
+init object — `new NotFound({ code: 'user_not_found', message: 'User 42 is gone' })`. The two
+forms are interchangeable; the init form exists for the fields that are not positional:
 
 | Class                   | Status | Reach for it when                                    |
 | ----------------------- | ------ | ---------------------------------------------------- |
@@ -40,18 +42,81 @@ Every class extends `HttpError` and takes `(message, data?, headers?)`:
 ### What an `HttpError` carries
 
 - `statusCode` — the number, also used to pick the response status.
+- `code` — a stable `snake_case` identifier, defaulted from the status (`404` → `not_found`).
+  It is what a client should branch on, since `message` is prose that may be reworded. It is
+  **not** in the default response body: put it there with a
+  [body shaper](#shaping-the-response-body).
 - `data` — anything extra, serialized under `data` in the response body. This is where
   `extractEventParams` puts its per-field error map.
 - `headers` — merged into the response (`Retry-After` on a 429, `WWW-Authenticate` on a 401).
-- `toApiGatewayResponse(headers?)` / `toApiGatewayResponseV2(headers?, cookies?)` — the
-  serialized response, in payload format 1.0 or 2.0.
+- `cause` — the underlying error. Non-enumerable, logged, never serialized into a response.
+- `diagnostics` — detail for whoever debugs this and for nobody else: a downstream stack trace,
+  a raw payload, an internal hostname. Non-enumerable, copied into the log record, and excluded
+  from every response builder.
+- `toApiGatewayResponse(headers?, shaper?)` /
+  `toApiGatewayResponseV2(headers?, cookies?, shaper?)` — the serialized response, in payload
+  format 1.0 or 2.0.
 - `toString()` — name, message and stack, for logs.
 
-The constructed error also **captures Lambda metadata** (`AWS_LAMBDA_FUNCTION_NAME`,
-`AWS_LAMBDA_LOG_STREAM_NAME`, `AWS_EXECUTION_ENV`) and emits it in the response body under
-`$x-custom-metadata`. That is deliberate: it turns "the API returned 500" into a log stream name
-you can open, without correlating timestamps by hand. It is stored as a **non-enumerable**
-property so a structured logger does not repeat the whole block on every line.
+The `data` / `diagnostics` split is the one to get right, because it decides what a public
+caller can read:
+
+```typescript
+throw new BadGateway({
+  message: `billing-service failed: ${errorType}`,
+  code: 'billing_unavailable',
+  data: { service: 'billing' }, // reaches the client
+  diagnostics: { trace, rawPayload }, // reaches the log only
+});
+```
+
+### Infrastructure metadata in the body
+
+An `HttpError` captures `AWS_LAMBDA_FUNCTION_NAME`, `AWS_LAMBDA_LOG_STREAM_NAME` and
+`AWS_EXECUTION_ENV` at construction, and can emit them in the response body under
+`$x-custom-metadata` — which turns "the API returned 500" into a log stream you can open.
+
+**It is off by default.** Until 1.6 it shipped on every status, so a 401 from the API key gate
+handed an unauthenticated caller the function name, the Node runtime version and a live log
+stream identifier before any credential had been presented. Turn it on deliberately:
+
+```typescript
+import { setInfraMetadataPolicy } from 'awpaki/errors';
+
+setInfraMetadataPolicy('server-errors'); // 5xx only — the responses you want reported
+setInfraMetadataPolicy('always'); // every error response, the pre-1.6 behaviour
+```
+
+or with `AWPAKI_ERROR_INFRA_METADATA=server-errors` in the deployment template. The policy is
+read when the body is built, not when the error is constructed, so a call during bootstrap
+governs errors thrown by modules imported before it.
+
+### Shaping the response body
+
+The default body is `{ message }`, plus `data` when present. A service whose contract is a
+stable machine-readable code — with translation done by the client — replaces it once, at
+bootstrap:
+
+```typescript
+import { setErrorBodyShaper, codeErrorBodyShaper } from 'awpaki/errors';
+
+setErrorBodyShaper(codeErrorBodyShaper);
+// 404          → { "error": "not_found" }
+// schema fail  → { "error": "unprocessable_entity", "data": { "errors": { ... } } }
+```
+
+Every error path honours it: both payload formats, the handlers below, and the `catch` of every
+factory. A shaper receives the error and a context carrying `defaultBody`, so it can add to
+awpaki's body instead of replacing it:
+
+```typescript
+setErrorBodyShaper((error, { defaultBody }) => ({ ...defaultBody, error: error.code }));
+```
+
+A shaper that throws, or returns something `JSON.stringify` refuses, falls back to the default
+body and logs a warning — it runs inside the last `catch` of the invocation, so its failure must
+not replace the status the caller was owed. `createApiGatewayHandlerV2` also takes
+`errorBodyShaper` for a single route.
 
 ### Creating an error from a status code
 
@@ -150,23 +215,38 @@ getHttpStatusName(200);      // undefined — no error class for success codes
 The same thrown error means different things to different services, which is why there is one
 handler per trigger rather than one generic function:
 
-| Handler                                    | Trigger                  | Returns                   | Behaviour                                        |
-| ------------------------------------------ | ------------------------ | ------------------------- | ------------------------------------------------ |
-| `handleApiGatewayError(error)`             | API Gateway REST (v1)    | `APIGatewayProxyResult`   | `HttpError` → HTTP response; other errors re-thrown |
-| `handleApiGatewayErrorV2(error, cookies?)` | API Gateway HTTP (v2)    | `APIGatewayProxyResultV2` | Same, plus the payload-format-2.0 `cookies` field |
-| `handleAppSyncError(error)`                | AppSync                  | `never`                   | Logs, then **always** re-throws — GraphQL formats it |
-| `handleSqsError(error)`                    | SQS                      | `void`                    | Re-throws so the message is retried / dead-lettered |
-| `handleSnsError(error)`                    | SNS                      | `void`                    | Re-throws                                         |
-| `handleEventBridgeError(error)`            | EventBridge              | `void`                    | Re-throws                                         |
-| `handleS3Error(error)`                     | S3                       | `void`                    | Re-throws                                         |
-| `handleDynamoDBStreamError(error)`         | DynamoDB Streams         | `void`                    | Re-throws                                         |
-| `handleGenericError(error)`                | anything, incl. invoke   | `void`                    | The shared implementation the five above alias    |
+| Handler                                            | Trigger                | Returns                   | Behaviour                                            |
+| -------------------------------------------------- | ---------------------- | ------------------------- | ---------------------------------------------------- |
+| `handleApiGatewayError(error, shaper?)`            | API Gateway REST (v1)  | `APIGatewayProxyResult`   | `HttpError` → HTTP response; other errors re-thrown  |
+| `handleApiGatewayErrorV2(error, cookies?, shaper?)` | API Gateway HTTP (v2)  | `APIGatewayProxyResultV2` | Same, plus the payload-format-2.0 `cookies` field    |
+| `handleAppSyncError(error)`                        | AppSync                | `never`                   | Logs, then **always** re-throws — GraphQL formats it |
+| `rethrowLambdaError(error)`                        | EventBridge, S3, SNS, SQS, DDB Streams | `never`   | Logs, then **always** re-throws                      |
+| `handleInvokeError(error)`                         | direct `Invoke`        | `GenericLambdaErrorResponse` | `HttpError` → `{ error, code, message, statusCode, data }`; other errors re-thrown |
+| `handleGenericError(error)`                        | direct `Invoke`        | `GenericLambdaErrorResponse` | The implementation `handleInvokeError` aliases    |
 
-The rule behind the table: **HTTP triggers translate, everything else re-throws.** API Gateway
-expects a response object, so an `HttpError` becomes one. SQS, SNS, S3, EventBridge and DynamoDB
-Streams rely on the *invocation failing* to trigger retry and DLQ delivery — swallowing the
-error there would silently drop messages. AppSync re-throws because GraphQL renders thrown
-errors into its own `errors` array.
+The rule behind the table: **a handler may return a value only when someone reads it.** API
+Gateway reads the response object, and the caller of a direct `Invoke` reads the payload — so
+those translate. Everything else must throw.
+
+> ⚠️ **`handleSqsError`, `handleSnsError`, `handleEventBridgeError`, `handleS3Error` and
+> `handleDynamoDBStreamError` are deprecated aliases of `handleGenericError`, and they do
+> **not** re-throw an `HttpError` — they return it.** EventBridge, S3 and SNS invoke
+> asynchronously: Lambda discards the return value and branches only on resolve-vs-reject, so a
+> returned error marks the invocation successful — no retries, no on-failure destination, no
+> DLQ. On SQS and DynamoDB Streams it is worse: the message is deleted, or the shard checkpoint
+> advances past a record that was never processed. Use `rethrowLambdaError`, or
+> `createSqsHandler`, which reports failures per record.
+
+```typescript
+export const handler = async (event: EventBridgeEvent<string, Detail>, context: Context) => {
+  logEventBridgeEvent(event, context);
+  try {
+    await process(event.detail);
+  } catch (error) {
+    rethrowLambdaError(error); // the platform must see the failure
+  }
+};
+```
 
 Non-`HttpError` values are always re-thrown, on every trigger. An unexpected exception is a bug,
 and turning it into a tidy 400 hides it from your alarms.

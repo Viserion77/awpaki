@@ -1,5 +1,5 @@
 import { ListThingsCommand } from '@aws-sdk/client-iot';
-import { iotClient } from './index';
+import { iotClient } from './index.js';
 
 describe('iotClient', () => {
   it('should have execute method', () => {

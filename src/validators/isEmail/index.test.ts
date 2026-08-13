@@ -1,4 +1,4 @@
-import { isEmail } from './index';
+import { isEmail } from './index.js';
 
 describe('isEmail', () => {
   it('should accept common valid addresses', () => {

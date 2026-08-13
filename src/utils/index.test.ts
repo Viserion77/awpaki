@@ -1,4 +1,4 @@
-import * as utils from './index';
+import * as utils from './index.js';
 
 describe('utils barrel', () => {
   const expectedExports = [
@@ -21,6 +21,8 @@ describe('utils barrel', () => {
     'encodeFlags',
     'decodeFlags',
     'MAX_FLAG_BIT',
+    'uuidv7',
+    'monotonicUuidv7',
   ];
 
   it.each(expectedExports)('should export %s', (name) => {

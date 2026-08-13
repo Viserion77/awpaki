@@ -4,7 +4,7 @@ import {
   isValidHttpStatus,
   isValidHttpErrorStatus,
   getHttpStatusName,
-} from './HttpStatus';
+} from './HttpStatus.js';
 
 describe('HttpStatus', () => {
   describe('enum values', () => {

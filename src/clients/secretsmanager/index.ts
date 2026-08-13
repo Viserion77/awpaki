@@ -1,17 +1,21 @@
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import type { GetSecretValueCommandOutput } from '@aws-sdk/client-secrets-manager';
-import retry from 'async-retry';
-import { defaultRetryOptions } from '../../constants/default-retry-options';
-import { resolveEndpoint, resolveRegion } from '../../environment';
-import { BadRequest, NotFound, UnprocessableEntity } from '../../errors';
-import { getLogger, toErrorLog } from '../../loggers/logger';
-import type { RetryOptions } from '../index.types';
+import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
+import { BadRequest, NotFound, UnprocessableEntity } from '../../errors/index.js';
+import { getLogger, toErrorLog } from '../../loggers/logger.js';
+import { createLazyClient } from '../lazyClient.js';
+import { withRetry } from '../retry/withRetry.js';
+import type { RetryOptions } from '../index.types.js';
 
-// Initialize Secrets Manager client from environment variables
-const client = new SecretsManagerClient({
-  region: resolveRegion(),
-  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SECRETS_MANAGER'),
-});
+// Built on first use, not at import: the region and endpoint are then read from the
+// environment the caller actually has, and a test can swap them with `resetAwsClients()`.
+const lazyClient = createLazyClient(
+  () =>
+    new SecretsManagerClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SECRETS_MANAGER'),
+    })
+);
 
 /**
  * Static AWS credentials stored in a secret.
@@ -75,18 +79,10 @@ function hasNonEmptyString(record: Record<string, unknown>, field: string): bool
  * @returns Promise with the command result
  */
 async function sendWithRetry<T>(command: any, retryOptions?: RetryOptions): Promise<T> {
-  const options = { ...defaultRetryOptions, ...retryOptions };
-
-  return retry(
-    async () => {
-      const result = await client.send(command);
-      return result as T;
-    },
-    {
-      retries: options.retries,
-      minTimeout: options.minTimeout,
-      maxTimeout: options.maxTimeout,
-    }
+  return withRetry(
+    { service: 'secretsmanager', command: command?.constructor?.name },
+    () => lazyClient.get().send(command) as Promise<T>,
+    retryOptions
   );
 }
 
@@ -121,19 +117,7 @@ export const secretsManagerClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    const options = { ...defaultRetryOptions, ...retryOptions };
-
-    return retry(
-      async () => {
-        const result = await client.send(command);
-        return result as T;
-      },
-      {
-        retries: options.retries,
-        minTimeout: options.minTimeout,
-        maxTimeout: options.maxTimeout,
-      }
-    );
+    return sendWithRetry<T>(command, retryOptions);
   },
 
   /**

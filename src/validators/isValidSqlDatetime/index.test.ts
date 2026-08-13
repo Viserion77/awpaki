@@ -1,4 +1,4 @@
-import { isValidSqlDatetime } from './index';
+import { isValidSqlDatetime } from './index.js';
 
 describe('isValidSqlDatetime', () => {
   it('should accept well-formed datetimes', () => {

@@ -1,4 +1,4 @@
-import { resolveEndpoint } from './resolveEndpoint';
+import { resolveEndpoint } from './resolveEndpoint.js';
 
 const ORIGINAL_ENV = process.env;
 

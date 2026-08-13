@@ -1,4 +1,4 @@
-import { readFirstEnv } from './readFirstEnv';
+import { readFirstEnv } from './readFirstEnv.js';
 
 /**
  * Global endpoint override, always the last candidate of any {@link resolveEndpoint} lookup.

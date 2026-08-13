@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import * as environment from './index';
+import * as environment from './index.js';
 
 const ORIGINAL_ENV = process.env;
 
@@ -29,6 +29,7 @@ describe('environment barrel', () => {
   it('keeps the public surface limited to the documented symbols', () => {
     expect(Object.keys(environment).sort()).toEqual([
       'DEFAULT_STAGE',
+      'isLocalEnvironment',
       'resolveEndpoint',
       'resolveRegion',
       'resolveStage',

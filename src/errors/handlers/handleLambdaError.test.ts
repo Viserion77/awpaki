@@ -11,12 +11,12 @@ import {
   handleS3Error,
   handleDynamoDBStreamError,
   handleAppSyncError,
-} from './handleLambdaError';
-import { resetLogSink, resetLogger, setLogSink, setLogger } from '../../loggers/logger';
-import type { Logger } from '../../loggers/logger';
-import { HttpError } from '../http/HttpError';
-import { BadRequest, NotFound, InternalServerError } from '../http/HttpErrors';
-import { HttpStatus } from '../http/HttpStatus';
+} from './handleLambdaError.js';
+import { resetLogSink, resetLogger, setLogSink, setLogger } from '../../loggers/logger.js';
+import type { Logger } from '../../loggers/logger.js';
+import { HttpError } from '../http/HttpError.js';
+import { BadRequest, NotFound, InternalServerError } from '../http/HttpErrors.js';
+import { HttpStatus } from '../http/HttpStatus.js';
 
 /**
  * Serialized lines captured from the logger sink.
@@ -276,6 +276,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'BadRequest',
+        code: 'bad_request',
         message: 'Invalid message',
         statusCode: HttpStatus.BAD_REQUEST,
         data: undefined,
@@ -288,6 +289,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'NotFound',
+        code: 'not_found',
         message: 'Record not found',
         statusCode: HttpStatus.NOT_FOUND,
         data: { recordId: 'abc' },
@@ -311,6 +313,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'BadRequest',
+        code: 'bad_request',
         message: 'Invalid notification',
         statusCode: HttpStatus.BAD_REQUEST,
         data: undefined,
@@ -330,6 +333,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'NotFound',
+        code: 'not_found',
         message: 'Event not found',
         statusCode: HttpStatus.NOT_FOUND,
         data: undefined,
@@ -349,6 +353,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'BadRequest',
+        code: 'bad_request',
         message: 'Invalid S3 object',
         statusCode: HttpStatus.BAD_REQUEST,
         data: undefined,
@@ -368,6 +373,7 @@ describe('Error Handlers', () => {
 
       expect(response).toEqual({
         error: 'BadRequest',
+        code: 'bad_request',
         message: 'Invalid DynamoDB record',
         statusCode: HttpStatus.BAD_REQUEST,
         data: undefined,

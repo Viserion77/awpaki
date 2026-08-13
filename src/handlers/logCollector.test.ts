@@ -4,12 +4,12 @@ import {
   getHandlerLogCollector,
   resetHandlerLogCollector,
   setHandlerLogCollector,
-} from './logCollector';
-import type { HandlerWrapper } from './logCollector';
-import { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2';
-import { getLogger, resetLogSink, withRuntimeLogCollector } from '../loggers';
-import { NotFound } from '../errors';
-import { createMockContext as buildMockContext, createMockEventV2 } from '../testing';
+} from './logCollector.js';
+import type { HandlerWrapper } from './logCollector.js';
+import { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2.js';
+import { getLogger, resetLogSink, withRuntimeLogCollector } from '../loggers/index.js';
+import { NotFound } from '../errors/index.js';
+import { createMockContext as buildMockContext, createMockEventV2 } from '../testing/index.js';
 
 afterEach(() => {
   resetHandlerLogCollector();

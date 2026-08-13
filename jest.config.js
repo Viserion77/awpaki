@@ -7,6 +7,12 @@ module.exports = {
   // No per-transformer options: `isolatedModules: true` in tsconfig.json satisfies what
   // ts-jest asks for under the hybrid Node16 module kind, so its TS151002 advisory is
   // resolved rather than silenced.
+  // Source specifiers carry the `.js` extension NodeNext requires of an ESM build, but the
+  // files on disk are `.ts` and ts-jest compiles them in place, so the extension has to be
+  // stripped back off at resolution time.
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

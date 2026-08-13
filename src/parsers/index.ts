@@ -1,1 +1,1 @@
-export { parseJsonBody } from './parseJsonBody';
+export { parseJsonBody } from './parseJsonBody.js';

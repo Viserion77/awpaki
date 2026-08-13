@@ -1,4 +1,4 @@
-import type { RetryOptions } from '../clients/index.types';
+import type { RetryOptions } from '../clients/index.types.js';
 
 /**
  * Default retry configuration shared by every AWS client of this package.

@@ -1,4 +1,4 @@
-import { DEFAULT_VARIABLE_PATTERN, dynamicVariableSwitcher } from './dynamicVariableSwitcher';
+import { DEFAULT_VARIABLE_PATTERN, dynamicVariableSwitcher } from './dynamicVariableSwitcher.js';
 
 describe('dynamicVariableSwitcher', () => {
   it('should replace a single placeholder', () => {

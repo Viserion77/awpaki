@@ -3,25 +3,26 @@ import type { InvokeCommandOutput } from '@aws-sdk/client-lambda';
 // `aws-lambda` ships types only and does not exist at runtime, so the import must be
 // erased at compile time — `import type` guarantees it.
 import type { APIGatewayProxyEvent, APIGatewayProxyEventV2 } from 'aws-lambda';
-import retry from 'async-retry';
 import { randomUUID } from 'node:crypto';
-import { defaultRetryOptions } from '../../constants/default-retry-options';
-import { resolveEndpoint, resolveRegion, resolveStage } from '../../environment';
-import { BadGateway, BadRequest, createHttpError } from '../../errors';
-import { getLogger, toErrorLog } from '../../loggers/logger';
-import type { RetryOptions } from '../index.types';
+import { resolveEndpoint, resolveRegion, resolveStage } from '../../environment/index.js';
+import { BadGateway, BadRequest, createHttpError } from '../../errors/index.js';
+import { getLogger, toErrorLog } from '../../loggers/logger.js';
+import { createLazyClient } from '../lazyClient.js';
+import { withRetry } from '../retry/withRetry.js';
+import type { RetryOptions } from '../index.types.js';
 
-// Region and endpoint are resolved once, at module load, and kept in module scope so the
-// ephemeral cross-account clients built by `invokeLambda` reuse exactly the same values as
-// the shared client below instead of resolving the environment again per call.
-const region = resolveRegion();
-const endpoint = resolveEndpoint('AWS_ENDPOINT_URL_LAMBDA');
-
-// Initialize Lambda client from environment variables
-const client = new LambdaClient({
-  region,
-  endpoint,
-});
+// Built on first use, not at import. Resolving the environment at module load froze the
+// region and endpoint at whatever happened to be set when the module was first required,
+// which is why the same test behaved differently depending on whether it exported
+// `AWS_ENDPOINT_URL` before or after the import. The ephemeral cross-account clients below
+// resolve the same way, per call, so both observe one environment.
+const lazyClient = createLazyClient(
+  () =>
+    new LambdaClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_LAMBDA'),
+    })
+);
 
 /**
  * Payload format of the synthetic API Gateway event built by {@link lambdaClient.invokeLambda}.
@@ -586,18 +587,10 @@ async function sendWithRetry<T>(
   command: any,
   retryOptions?: RetryOptions
 ): Promise<T> {
-  const options = { ...defaultRetryOptions, ...retryOptions };
-
-  return retry(
-    async () => {
-      const result = await target.send(command);
-      return result as T;
-    },
-    {
-      retries: options.retries,
-      minTimeout: options.minTimeout,
-      maxTimeout: options.maxTimeout,
-    }
+  return withRetry(
+    { service: 'lambda', command: command?.constructor?.name },
+    () => target.send(command) as Promise<T>,
+    retryOptions
   );
 }
 
@@ -648,19 +641,7 @@ export const lambdaClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    const options = { ...defaultRetryOptions, ...retryOptions };
-
-    return retry(
-      async () => {
-        const result = await client.send(command);
-        return result as T;
-      },
-      {
-        retries: options.retries,
-        minTimeout: options.minTimeout,
-        maxTimeout: options.maxTimeout,
-      }
-    );
+    return sendWithRetry<T>(lazyClient.get(), command, retryOptions);
   },
 
   /**
@@ -764,8 +745,8 @@ export const lambdaClient = {
     const ephemeralClient =
       options.credentials || options.region
         ? new LambdaClient({
-            region: options.region ?? region,
-            endpoint,
+            region: options.region ?? resolveRegion(),
+            endpoint: resolveEndpoint('AWS_ENDPOINT_URL_LAMBDA'),
             credentials: options.credentials,
           })
         : undefined;
@@ -788,7 +769,7 @@ export const lambdaClient = {
 
     try {
       output = await sendWithRetry<InvokeCommandOutput>(
-        ephemeralClient ?? client,
+        ephemeralClient ?? lazyClient.get(),
         command,
         options.retryOptions
       );
@@ -822,13 +803,25 @@ export const lambdaClient = {
         `Lambda ${functionName} returned a function error`
       );
 
-      throw new BadGateway(`Lambda ${functionName} failed: ${errorType}: ${errorMessage}`, {
-        functionName,
-        functionError: output.FunctionError,
-        errorType,
-        errorMessage,
-        trace: detail.trace ?? detail.stackTrace,
-        rawPayload: decoded.rawPayload,
+      // `data` is serialized into the HTTP response body; `diagnostics` is not, and reaches
+      // the log instead. In the composition the docs recommend — an API Gateway handler whose
+      // `execute` invokes an internal function — everything below the split would otherwise be
+      // reflected to a public caller: the downstream stack frames, the absolute `/var/task`
+      // paths they contain, the internal host:port an ECONNREFUSED message carries, and
+      // `rawPayload`, which is whatever the internal function happened to return.
+      throw new BadGateway({
+        message: `Lambda ${functionName} failed: ${errorType}: ${errorMessage}`,
+        code: 'downstream_lambda_failed',
+        data: {
+          functionName,
+          functionError: output.FunctionError,
+          errorType,
+        },
+        diagnostics: {
+          errorMessage,
+          trace: detail.trace ?? detail.stackTrace,
+          rawPayload: decoded.rawPayload,
+        },
       });
     }
 
@@ -857,11 +850,15 @@ export const lambdaClient = {
           ? decoded.body.message
           : undefined) ?? `Lambda ${functionName} answered with status ${decoded.statusCode}`;
 
-      throw createHttpError(decoded.statusCode, message, {
-        functionName,
-        statusCode: decoded.statusCode,
-        body: decoded.body,
-      });
+      // Same split: the downstream body can hold anything the internal service returned, so it
+      // travels as diagnostics rather than in the response this error becomes.
+      throw createHttpError(
+        decoded.statusCode,
+        message,
+        { functionName, statusCode: decoded.statusCode },
+        undefined,
+        { diagnostics: { body: decoded.body } }
+      );
     }
 
     return {

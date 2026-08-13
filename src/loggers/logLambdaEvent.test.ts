@@ -18,8 +18,15 @@ import {
   logS3Event,
   logDynamoDBStreamEvent,
   logAppSyncEvent,
-} from './logLambdaEvent';
-import { setLogger, resetLogger, setLogSink, resetLogSink } from './logger';
+} from './logLambdaEvent.js';
+import {
+  setLogger,
+  resetLogger,
+  setLogSink,
+  resetLogSink,
+  setLogLevel,
+  resetLogLevel,
+} from './logger.js';
 
 /**
  * A recorded logger call, in the object-first order mandated by the `Logger`
@@ -329,7 +336,9 @@ describe('logApiGatewayEventV2', () => {
     expect(logData.userAgent).toBe('Mozilla/5.0');
     expect(logData.apiId).toBe('test-api-id-v2');
     expect(logData.requestTimeEpoch).toBe(1702000000000);
-    expect(logData.cookies).toEqual(['session=abc123']);
+    // Names only: the values are the session itself, on every request.
+    expect(logData.cookies).toBeUndefined();
+    expect(logData.cookieNames).toEqual(['session']);
   });
 
   it('should log all headers in debug output', () => {
@@ -400,7 +409,9 @@ describe('logSqsEvent', () => {
     expect(recordData.totalRecords).toBe(1);
     expect(recordData.md5OfBody).toBe('abc123');
     expect(recordData.awsRegion).toBe('us-east-1');
-    expect(recordData.body).toBe(`${JSON.stringify({ userId: 123, action: 'update' })}...`);
+    // No preview at INFO: a truncated JSON fragment cannot be redacted by key name.
+    expect(recordData.body).toBeUndefined();
+    expect(recordData.bodyBytes).toBe(JSON.stringify({ userId: 123, action: 'update' }).length);
   });
 
   it('should log full body in debug output', () => {
@@ -415,7 +426,9 @@ describe('logSqsEvent', () => {
       'SQS Record Full Body test-function:test-request-id-123:msg-123'
     );
     expect(recordData.body).toBe(JSON.stringify({ userId: 123, action: 'update' }));
-    expect(recordData.receiptHandle).toBe('receipt-handle-xyz');
+    // The receipt handle is a capability token, not an identifier: holding it is enough to
+    // delete the message.
+    expect(recordData.receiptHandle).toBeUndefined();
   });
 
   it('should number every record of a batch', () => {
@@ -446,7 +459,7 @@ describe('logSqsEvent', () => {
     expect(eventData.queueArn).toBeUndefined();
   });
 
-  it('should truncate the body to 100 characters in the info record', () => {
+  it('should report the body size instead of a preview in the info record', () => {
     const event = createMockSqsEvent();
     event.Records[0].body = 'x'.repeat(250);
     const context = createMockContext();
@@ -454,7 +467,8 @@ describe('logSqsEvent', () => {
     logSqsEvent(event, context);
 
     const [recordData] = infoOutput[1];
-    expect(recordData.body).toBe(`${'x'.repeat(100)}...`);
+    expect(recordData.body).toBeUndefined();
+    expect(recordData.bodyBytes).toBe(250);
   });
 });
 
@@ -1010,6 +1024,9 @@ describe('structured logging contract', () => {
 
     beforeEach(() => {
       resetLogger();
+      // The headers record is DEBUG, which the INFO default now drops; this block is about
+      // the shape of the emitted line, so it asks for the level that produces both.
+      setLogLevel('debug');
       lines = [];
       setLogSink((line) => lines.push(line));
       consoleInfoSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
@@ -1018,6 +1035,7 @@ describe('structured logging contract', () => {
     });
 
     afterEach(() => {
+      resetLogLevel();
       consoleInfoSpy.mockRestore();
       consoleDebugSpy.mockRestore();
       consoleLogSpy.mockRestore();

@@ -11,14 +11,14 @@
  */
 
 import type { Context } from 'aws-lambda';
-import { BadRequest, handleGenericError } from '../errors';
-import type { GenericLambdaErrorResponse } from '../errors';
-import { extractEventParams } from '../extractors';
-import type { EventSchema } from '../extractors';
-import { getLogger } from '../loggers';
-import type { LogConfig } from '../loggers';
-import { applyLogCollector } from './logCollector';
-import type { HandlerWrapper, LambdaHandler } from './logCollector';
+import { BadRequest, handleGenericError } from '../errors/index.js';
+import type { GenericLambdaErrorResponse, HttpErrorStatusType } from '../errors/index.js';
+import { extractEventParams } from '../extractors/index.js';
+import type { EventSchema } from '../extractors/index.js';
+import { getLogger } from '../loggers/index.js';
+import type { LogConfig } from '../loggers/index.js';
+import { applyLogCollector } from './logCollector.js';
+import type { HandlerWrapper, LambdaHandler } from './logCollector.js';
 
 /**
  * Everything `execute` and `authorize` receive.
@@ -45,6 +45,10 @@ export interface InvokeHandlerInput<TParams> {
 export interface CreateInvokeHandlerOptions<TParams, TResult> {
   /** Schema handed to {@link extractEventParams}; omit when the function takes no input */
   schema?: EventSchema;
+  /** Status used for a schema failure with no `statusCodeError` of its own. Defaults to 422 */
+  validationStatusCode?: HttpErrorStatusType;
+  /** `code` carried by a schema failure, for callers that branch on one */
+  validationErrorCode?: string;
   /** Business function — its return value is the invoke response, untouched */
   execute: (input: InvokeHandlerInput<TParams>) => TResult | Promise<TResult>;
   /**
@@ -150,9 +154,11 @@ export function normalizeInvokePayload(payload: unknown): Record<string, unknown
  * of a JSON string.
  *
  * Errors follow the convention of {@link handleGenericError}: an `HttpError` becomes
- * the structured `{ error, message, statusCode, data }` envelope so the caller can
- * branch on `statusCode`, while any other error is re-thrown and fails the invocation
- * (which is what keeps Lambda retries and DLQs working).
+ * the structured `{ error, code, message, statusCode, data }` envelope so the caller can
+ * branch on `code` or `statusCode`, while any other error is re-thrown and fails the
+ * invocation (which is what keeps Lambda retries and DLQs working). Returning the envelope is
+ * correct **here** because a direct `Invoke` reads the payload back — it is not correct for an
+ * asynchronous trigger, where a returned value means success.
  *
  * @template TParams - Shape produced by the schema
  * @template TResult - Value resolved back to the calling Lambda
@@ -201,7 +207,10 @@ export function createInvokeHandler<TParams = Record<string, unknown>, TResult =
         `Invoke Payload ${context?.functionName}:${context?.awsRequestId}`
       );
 
-      const params = extractEventParams<TParams>(options.schema ?? {}, payload);
+      const params = extractEventParams<TParams>(options.schema ?? {}, payload, {
+        validationStatusCode: options.validationStatusCode,
+        validationErrorCode: options.validationErrorCode,
+      });
       const input: InvokeHandlerInput<TParams> = { params, payload, rawPayload, context };
 
       if (options.authorize) {

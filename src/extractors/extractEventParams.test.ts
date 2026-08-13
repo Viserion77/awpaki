@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEvent, AppSyncResolverEvent } from 'aws-lambda';
-import { extractEventParams, EventSchema, ParameterType } from './extractEventParams';
-import { Unauthorized, UnprocessableEntity, BadRequest, HttpStatus } from '../errors';
+import { extractEventParams, EventSchema, ParameterType } from './extractEventParams.js';
+import { Unauthorized, UnprocessableEntity, BadRequest, HttpStatus } from '../errors/index.js';
 
 const createMockEvent = (overrides: Partial<APIGatewayProxyEvent> = {}): APIGatewayProxyEvent => ({
   body: null,
@@ -926,6 +926,169 @@ describe('extractEventParams', () => {
 
       const result = extractEventParams<{ authorization: string }>(schema, event);
       expect(result.authorization).toBe('Bearer token123');
+    });
+  });
+
+  describe('validation status policy', () => {
+    const schema: EventSchema = {
+      body: { email: { label: 'Email', required: true } },
+    };
+
+    it('defaults to 422', () => {
+      expect(() => extractEventParams(schema, createMockEvent())).toThrow(UnprocessableEntity);
+    });
+
+    it('honours a global validationStatusCode', () => {
+      expect(() =>
+        extractEventParams(schema, createMockEvent(), {
+          validationStatusCode: HttpStatus.BAD_REQUEST,
+        })
+      ).toThrow(BadRequest);
+    });
+
+    it('keeps a per-field statusCodeError over the global default', () => {
+      const withField: EventSchema = {
+        headers: {
+          authorization: {
+            label: 'Authorization',
+            required: true,
+            statusCodeError: HttpStatus.UNAUTHORIZED,
+          },
+        },
+      };
+
+      expect(() =>
+        extractEventParams(withField, createMockEvent({ headers: {} }), {
+          validationStatusCode: HttpStatus.BAD_REQUEST,
+        })
+      ).toThrow(Unauthorized);
+    });
+
+    it('carries a stable code for clients that branch on one', () => {
+      try {
+        extractEventParams(schema, createMockEvent(), {
+          validationStatusCode: HttpStatus.BAD_REQUEST,
+          validationErrorCode: 'invalid_request',
+        });
+        throw new Error('should have thrown');
+      } catch (error) {
+        expect((error as BadRequest).code).toBe('invalid_request');
+      }
+    });
+
+    // A malformed body is a 400 whatever the policy for semantic failures is: there is no
+    // field to complain about, the document itself did not parse.
+    it('answers 400 for unparseable JSON regardless of the policy', () => {
+      const event = createMockEvent({ body: 'not json' });
+
+      expect(() =>
+        extractEventParams(schema, event, { validationStatusCode: HttpStatus.UNPROCESSABLE_ENTITY })
+      ).toThrow(BadRequest);
+    });
+  });
+
+  describe('status severity across several failures', () => {
+    const schema: EventSchema = {
+      headers: {
+        authorization: {
+          label: 'Authorization',
+          required: true,
+          statusCodeError: HttpStatus.UNAUTHORIZED,
+        },
+      },
+      body: { email: { label: 'Email', required: true } },
+    };
+
+    // `Math.max` answered 422 here, so adding an unrelated body field to a schema silently
+    // downgraded an authentication failure and hid it from anything alerting on 401 rates.
+    it('reports 401 rather than the numerically higher 422', () => {
+      let thrown: unknown;
+      try {
+        extractEventParams(schema, createMockEvent({ headers: {} }));
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Unauthorized);
+      expect((thrown as Unauthorized).data?.errors).toEqual({
+        'headers.authorization': [HttpStatus.UNAUTHORIZED, 'Authorization is required'],
+        'body.email': [HttpStatus.UNPROCESSABLE_ENTITY, 'Email is required'],
+      });
+    });
+
+    it('still accumulates every field, which is what a form needs', () => {
+      let thrown: unknown;
+      try {
+        extractEventParams(
+          {
+            body: {
+              email: { label: 'Email', required: true },
+              name: { label: 'Name', required: true },
+              age: { label: 'Age', required: true },
+            },
+          },
+          createMockEvent()
+        );
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(Object.keys((thrown as UnprocessableEntity).data?.errors ?? {})).toEqual([
+        'body.email',
+        'body.name',
+        'body.age',
+      ]);
+    });
+  });
+
+  describe('schema defects', () => {
+    // Extraction is flat, so two branches claiming one leaf name silently overwrote each
+    // other — handing `execute` the body value in place of a verified authorizer claim.
+    it('throws when two entries extract to the same leaf name', () => {
+      const schema: EventSchema = {
+        pathParameters: { tenantId: { label: 'Tenant' } },
+        body: { tenantId: { label: 'Tenant from body' } },
+      };
+      const event = createMockEvent({
+        pathParameters: { tenantId: 'trusted' },
+        body: JSON.stringify({ tenantId: 'attacker' }),
+      });
+
+      expect(() => extractEventParams(schema, event)).toThrow(TypeError);
+      expect(() => extractEventParams(schema, event)).toThrow(/both extract to 'tenantId'/);
+    });
+
+    it('allows the same leaf name when only one branch actually declares it', () => {
+      const schema: EventSchema = {
+        pathParameters: { tenantId: { label: 'Tenant' } },
+        body: { name: { label: 'Name' } },
+      };
+      const event = createMockEvent({
+        pathParameters: { tenantId: 'trusted' },
+        body: JSON.stringify({ name: 'ada' }),
+      });
+
+      expect(extractEventParams(schema, event)).toEqual({ tenantId: 'trusted', name: 'ada' });
+    });
+
+    // `label` is the only discriminator, so a config without one is walked as a nested
+    // schema: the field is never extracted and `required: true` never enforced.
+    it('throws when a parameter config has no label', () => {
+      const schema = {
+        body: { email: { required: true, expectedType: ParameterType.STRING } },
+      } as unknown as EventSchema;
+
+      expect(() => extractEventParams(schema, createMockEvent())).toThrow(TypeError);
+      expect(() => extractEventParams(schema, createMockEvent())).toThrow(/no 'label'/);
+    });
+
+    it('leaves a genuine nested schema alone', () => {
+      const schema: EventSchema = {
+        body: { user: { email: { label: 'Email', required: true } } },
+      };
+      const event = createMockEvent({ body: JSON.stringify({ user: { email: 'a@b.com' } }) });
+
+      expect(extractEventParams(schema, event)).toEqual({ email: 'a@b.com' });
     });
   });
 });

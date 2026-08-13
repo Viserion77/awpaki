@@ -8,19 +8,19 @@
  * @module handlers
  */
 
-export { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2';
+export { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2.js';
 export type {
   ApiGatewayHandlerV2Input,
   ApiGatewayHandlerV2Response,
   ApiGatewayHeaderValue,
   CreateApiGatewayHandlerV2Options,
-} from './createApiGatewayHandlerV2';
+} from './createApiGatewayHandlerV2.js';
 
-export { createInvokeHandler, normalizeInvokePayload } from './createInvokeHandler';
-export type { CreateInvokeHandlerOptions, InvokeHandlerInput } from './createInvokeHandler';
+export { createInvokeHandler, normalizeInvokePayload } from './createInvokeHandler.js';
+export type { CreateInvokeHandlerOptions, InvokeHandlerInput } from './createInvokeHandler.js';
 
-export { createSqsHandler } from './createSqsHandler';
-export type { CreateSqsHandlerOptions, SqsHandlerInput } from './createSqsHandler';
+export { createSqsHandler } from './createSqsHandler.js';
+export type { CreateSqsHandlerOptions, SqsHandlerInput } from './createSqsHandler.js';
 
 // Seam for the per-invocation log buffer. Handlers run unwrapped until a
 // wrapper is registered, so the factories never depend on the collector module.
@@ -29,5 +29,5 @@ export {
   getHandlerLogCollector,
   resetHandlerLogCollector,
   setHandlerLogCollector,
-} from './logCollector';
-export type { HandlerWrapper, LambdaHandler } from './logCollector';
+} from './logCollector.js';
+export type { HandlerWrapper, LambdaHandler } from './logCollector.js';

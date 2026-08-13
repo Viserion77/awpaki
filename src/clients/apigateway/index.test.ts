@@ -1,5 +1,5 @@
 import { GetRestApisCommand } from '@aws-sdk/client-api-gateway';
-import { apiGatewayClient } from './index';
+import { apiGatewayClient } from './index.js';
 
 describe('apiGatewayClient', () => {
   it('should have execute method', () => {

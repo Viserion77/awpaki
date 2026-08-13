@@ -14,6 +14,39 @@
 type UnknownRecord = Record<string, unknown>;
 
 /**
+ * Writes a key/value pair into a result object, including the one key plain assignment
+ * cannot carry.
+ *
+ * `JSON.parse('{"__proto__":{}}')` produces a genuine own data property, so a request body
+ * can legitimately contain `__proto__` as a field name. Writing it back with `result[key] =`
+ * goes through the setter inherited from `Object.prototype` and swaps the *result's*
+ * prototype instead of storing a key: the value becomes readable as `result.role` while
+ * `Object.keys(result)` never shows it, so an authorization check passes and an audit built
+ * from the key list sees nothing. (`Object.prototype` itself is untouched — this is object
+ * corruption and silent data loss, not global prototype pollution.)
+ *
+ * `defineProperty` stores it as what it always was: an own, enumerable, writable key.
+ *
+ * @param target - Object being built
+ * @param key - Key to write
+ * @param value - Value to store
+ * @returns Nothing
+ */
+function assign(target: UnknownRecord, key: string, value: unknown): void {
+  if (key === '__proto__') {
+    Object.defineProperty(target, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    return;
+  }
+
+  target[key] = value;
+}
+
+/**
  * Checks whether a value is a plain object (object literal or `Object.create(null)`).
  *
  * Internal helper — arrays, `null`, `Date` and class instances return `false`.
@@ -112,7 +145,7 @@ export function cleanRecord<T extends object>(record: T): CleanedRecord<T> {
 
   for (const [key, value] of Object.entries(record) as Array<[string, unknown]>) {
     if (value !== undefined) {
-      result[key] = value;
+      assign(result, key, value);
     }
   }
 
@@ -153,29 +186,29 @@ function diffRecords(oldObject: UnknownRecord, newObject: UnknownRecord): JsonDi
     // `undefined` in the new state means "absent" (JSON semantics), so it counts as a removal.
     if (newValue === undefined) {
       if (existedBefore) {
-        removed[key] = oldValue;
+        assign(removed, key, oldValue);
       }
       continue;
     }
 
     if (!existedBefore) {
-      diff[key] = newValue;
+      assign(diff, key, newValue);
       continue;
     }
 
     if (isPlainObject(oldValue) && isPlainObject(newValue)) {
       const nested = diffRecords(oldValue, newValue);
       if (Object.keys(nested.diff).length > 0) {
-        diff[key] = nested.diff;
+        assign(diff, key, nested.diff);
       }
       if (Object.keys(nested.removed).length > 0) {
-        removed[key] = nested.removed;
+        assign(removed, key, nested.removed);
       }
       continue;
     }
 
     if (!deepEquals(oldValue, newValue)) {
-      diff[key] = newValue;
+      assign(diff, key, newValue);
     }
   }
 
@@ -184,7 +217,7 @@ function diffRecords(oldObject: UnknownRecord, newObject: UnknownRecord): JsonDi
       continue;
     }
     if (oldObject[key] !== undefined) {
-      removed[key] = oldObject[key];
+      assign(removed, key, oldObject[key]);
     }
   }
 
@@ -274,7 +307,7 @@ function mergeRecords(
   if (keepOldKeys) {
     for (const key of Object.keys(oldObject)) {
       if (oldObject[key] !== undefined) {
-        result[key] = oldObject[key];
+        assign(result, key, oldObject[key]);
       }
     }
   }
@@ -293,18 +326,18 @@ function mergeRecords(
 
     if (!existedBefore) {
       if (addNewKeys) {
-        result[key] = newValue;
+        assign(result, key, newValue);
       }
       continue;
     }
 
     if (isPlainObject(oldValue) && isPlainObject(newValue)) {
-      result[key] = mergeRecords(oldValue, newValue, keepOldKeys, addNewKeys);
+      assign(result, key, mergeRecords(oldValue, newValue, keepOldKeys, addNewKeys));
       continue;
     }
 
     // Arrays (and every other non-plain value) REPLACE — they never concatenate.
-    result[key] = newValue;
+    assign(result, key, newValue);
   }
 
   return result;

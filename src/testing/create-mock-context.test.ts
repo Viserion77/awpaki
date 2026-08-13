@@ -5,7 +5,7 @@ import {
   MOCK_CONTEXT_REGION,
   MOCK_FUNCTION_NAME,
   MOCK_REMAINING_TIME_IN_MILLIS,
-} from './create-mock-context';
+} from './create-mock-context.js';
 
 describe('createMockContext', () => {
   it('builds a complete context with no overrides', () => {

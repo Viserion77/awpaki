@@ -91,6 +91,100 @@ const LEVEL_LABELS: Record<LogLevel, LogLevelLabel> = {
   error: 'ERROR',
 };
 
+const LEVEL_SEVERITY: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
+
+/**
+ * Level emitted when nothing is configured.
+ *
+ * INFO, matching the AWS default, because DEBUG is where the expensive and sensitive records
+ * live: full request headers, whole message bodies, complete DynamoDB images. Filtering used
+ * to be delegated entirely to Lambda Advanced Logging Controls, which meant no filtering at
+ * all outside Lambda, in `Text` mode, or in any test run.
+ */
+export const DEFAULT_LOG_LEVEL: LogLevel = 'info';
+
+/**
+ * Environment variables consulted for the threshold, highest precedence first.
+ *
+ * `AWS_LAMBDA_LOG_LEVEL` is in the middle because Lambda sets it from the function's
+ * `applicationLogLevel`: honouring it means the platform setting and the library agree by
+ * default, and `AWPAKI_LOG_LEVEL` exists to disagree deliberately (a consumer using
+ * `withRuntimeLogCollector` wants DEBUG produced and *buffered*, not dropped).
+ */
+const LEVEL_ENV_VARS = ['AWPAKI_LOG_LEVEL', 'AWS_LAMBDA_LOG_LEVEL', 'LOG_LEVEL'] as const;
+
+let threshold: LogLevel | undefined;
+
+/**
+ * Reads the active threshold, preferring a level set in code over the environment.
+ *
+ * Resolved per record rather than cached: `emit` already reads `AWS_LAMBDA_LOG_FORMAT` per
+ * call, a Lambda container can be reused across configuration changes, and a cached value
+ * would make the level unsettable from a test that assigns `process.env` in its body.
+ *
+ * @returns The lowest level that is emitted
+ */
+function resolveThreshold(): LogLevel {
+  if (threshold !== undefined) {
+    return threshold;
+  }
+
+  for (const name of LEVEL_ENV_VARS) {
+    const value = process.env[name]?.trim().toLowerCase();
+    if (value && value in LEVEL_SEVERITY) {
+      return value as LogLevel;
+    }
+  }
+
+  return DEFAULT_LOG_LEVEL;
+}
+
+/**
+ * Sets the lowest level the default logger emits, overriding the environment.
+ *
+ * @param level - Lowest level to emit
+ * @returns Nothing
+ * @throws TypeError if the value is not one of the four levels
+ *
+ * @example
+ * ```typescript
+ * import { setLogLevel } from 'awpaki/loggers';
+ *
+ * setLogLevel('debug');
+ * ```
+ */
+export function setLogLevel(level: LogLevel): void {
+  if (!(level in LEVEL_SEVERITY)) {
+    throw new TypeError(
+      `setLogLevel expects one of ${Object.keys(LEVEL_SEVERITY).join(', ')}, received ${JSON.stringify(level)}`
+    );
+  }
+  threshold = level;
+}
+
+/**
+ * Returns the level in force: the one set in code, else the environment, else INFO.
+ *
+ * @returns The active threshold
+ */
+export function getLogLevel(): LogLevel {
+  return resolveThreshold();
+}
+
+/**
+ * Clears a level set in code, restoring the environment lookup. Mainly for tests.
+ *
+ * @returns Nothing
+ */
+export function resetLogLevel(): void {
+  threshold = undefined;
+}
+
 /**
  * Detects `Error` instances, including objects coming from another realm (vm
  * context, worker) where `instanceof Error` is false.
@@ -133,29 +227,184 @@ function errorToPlainObject(error: Error): Record<string, unknown> {
     plain.cause = cause;
   }
 
+  // `HttpError.diagnostics` is non-enumerable for the same reason `cause` is: it must never
+  // be picked up by a generic walk and end up in a response body. That also hides it from the
+  // loop above, so the one place it *is* wanted — the log — has to ask for it by name.
+  const { diagnostics } = error as Error & { diagnostics?: unknown };
+  if (diagnostics !== undefined) {
+    plain.diagnostics = diagnostics;
+  }
+
   return plain;
+}
+
+/** Value written in place of a redacted one. */
+const REDACTED = '[REDACTED]';
+
+/**
+ * Key names whose value never belongs in a log line.
+ *
+ * Chosen to be exact names rather than patterns, in both casings the AWS ecosystem produces:
+ * a header map arrives lower-cased from API Gateway, a decoded JWT or an SDK response does
+ * not. `token` is deliberately absent — a pagination or idempotency token is not a secret,
+ * and redacting it by default would hide ordinary data; the named token keys are listed
+ * instead.
+ */
+export const DEFAULT_REDACT_KEYS: readonly string[] = [
+  'authorization',
+  'Authorization',
+  'cookie',
+  'Cookie',
+  'cookies',
+  'Cookies',
+  'set-cookie',
+  'Set-Cookie',
+  'password',
+  'Password',
+  'passwd',
+  'secret',
+  'Secret',
+  'pepper',
+  'apikey',
+  'apiKey',
+  'ApiKey',
+  'api_key',
+  'x-api-key',
+  'X-Api-Key',
+  'X-API-Key',
+  'access_token',
+  'accessToken',
+  'refresh_token',
+  'refreshToken',
+  'id_token',
+  'idToken',
+  'sessionToken',
+  'session_token',
+  'client_secret',
+  'clientSecret',
+  'privateKey',
+  'private_key',
+  'credentials',
+  'Credentials',
+  'SecretAccessKey',
+  'secretAccessKey',
+  'SessionToken',
+];
+
+let redactKeys = new Set<string>(DEFAULT_REDACT_KEYS);
+
+/**
+ * Checks a key against the redaction list.
+ *
+ * @param key - Property name being serialized
+ * @returns True when the value must not be written
+ */
+function isRedactedKey(key: string): boolean {
+  return redactKeys.has(key);
+}
+
+/**
+ * Replaces the redaction list entirely.
+ *
+ * @param keys - Key names to redact, matched exactly
+ * @returns Nothing
+ *
+ * @example
+ * ```typescript
+ * import { setRedactKeys, DEFAULT_REDACT_KEYS } from 'awpaki/loggers';
+ *
+ * setRedactKeys([...DEFAULT_REDACT_KEYS, 'cpf', 'taxId']);
+ * ```
+ */
+export function setRedactKeys(keys: readonly string[]): void {
+  redactKeys = new Set(keys);
+}
+
+/**
+ * Adds key names to the redaction list, keeping the defaults.
+ *
+ * @param keys - Additional key names
+ * @returns Nothing
+ *
+ * @example
+ * ```typescript
+ * addRedactKeys(['cpf', 'cardNumber']);
+ * ```
+ */
+export function addRedactKeys(keys: readonly string[]): void {
+  for (const key of keys) {
+    redactKeys.add(key);
+  }
+}
+
+/**
+ * Returns the key names currently redacted.
+ *
+ * @returns The active list
+ */
+export function getRedactKeys(): string[] {
+  return [...redactKeys];
+}
+
+/**
+ * Restores {@link DEFAULT_REDACT_KEYS}. Mainly for tests.
+ *
+ * @returns Nothing
+ */
+export function resetRedactKeys(): void {
+  redactKeys = new Set(DEFAULT_REDACT_KEYS);
 }
 
 /**
  * Serializes a record to a single JSON line. A logger must never throw, so this
- * handles errors, circular references, BigInt, symbols and functions, and falls back
- * to a minimal line when serialization still fails.
+ * handles errors, circular references, BigInt, symbols and functions, redacts the values of
+ * sensitive key names, and falls back to a minimal line when serialization still fails.
  *
  * @param record - Record to serialize
  * @returns Single line JSON string (no trailing newline)
  */
 function safeStringify(record: Record<string, unknown>): string {
-  const seen = new WeakSet<object>();
+  // An *ancestor* stack, not a visited set. A `WeakSet` of everything already serialized
+  // reports `[Circular]` for a value merely referenced twice — `{ err, event }` sharing one
+  // sub-object is the ordinary shape of an error log — which silently deleted data that was
+  // perfectly serializable. Only a value that is its own ancestor is a real cycle.
+  //
+  // Each frame keeps two identities because an `Error` is replaced by a plain object on the
+  // way out: `holder` is what `JSON.stringify` hands to the children as `this`, `original`
+  // is what a cyclic reference further down will actually point at.
+  const ancestors: Array<{ holder: unknown; original: unknown }> = [];
 
-  return JSON.stringify(record, function replacer(_key: string, value: unknown): unknown {
+  return JSON.stringify(record, function replacer(key: string, value: unknown): unknown {
+    // The root call has an empty key and `this` is the wrapper object, so the walk starts
+    // clean; every later call unwinds the stack back to the holder of this key.
+    while (ancestors.length > 0 && ancestors[ancestors.length - 1]?.holder !== this) {
+      ancestors.pop();
+    }
+
+    // Redaction rides the traversal `JSON.stringify` already performs: a separate cloning
+    // pass would double the cost of every record. It matches key NAMES exactly (never
+    // values, never substrings — `secretId` in the Secrets Manager client is not a secret),
+    // and it protects the default logger only: `setLogger(pino())` owns its own output.
+    if (key !== '' && isRedactedKey(key)) {
+      return REDACTED;
+    }
+
     if (typeof value === 'bigint') return value.toString();
     if (typeof value === 'symbol') return value.toString();
     if (typeof value === 'function') return `[Function: ${value.name || 'anonymous'}]`;
 
     if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) return '[Circular]';
-      seen.add(value);
-      if (isError(value)) return errorToPlainObject(value);
+      if (ancestors.some((frame) => frame.original === value || frame.holder === value)) {
+        return '[Circular]';
+      }
+
+      if (isError(value)) {
+        const plain = errorToPlainObject(value);
+        ancestors.push({ holder: plain, original: value });
+        return plain;
+      }
+
+      ancestors.push({ holder: value, original: value });
     }
 
     return value;
@@ -210,9 +459,22 @@ function writeLine(line: string): void {
  * @param msg - Optional human readable message
  */
 function emit(level: LogLevel, obj: unknown, msg?: string): void {
+  if (LEVEL_SEVERITY[level] < LEVEL_SEVERITY[resolveThreshold()]) {
+    return;
+  }
+
+  // `level` must stay the FIRST key: the runtime log collector classifies an already
+  // serialized line with `/^\{"level":"([A-Z]+)"/`, so moving it silently stops WARN and
+  // ERROR from passing through the buffer.
   const record: Record<string, unknown> = { level: LEVEL_LABELS[level] };
 
-  if (process.env.AWS_LAMBDA_LOG_FORMAT !== 'JSON') {
+  if (process.env.AWS_LAMBDA_LOG_FORMAT === 'JSON') {
+    // Advanced Logging Controls assigns level INFO to any JSON record without a valid
+    // RFC 3339 timestamp — and drops the `level` field while doing it. Omitting the stamp
+    // "because the platform adds one" therefore defeated the very filtering it was
+    // delegating to: every DEBUG record was reclassified as INFO and ingested.
+    record.timestamp = new Date().toISOString();
+  } else {
     record.time = new Date().toISOString();
   }
 

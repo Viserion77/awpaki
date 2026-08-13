@@ -1,4 +1,4 @@
-import { readFirstEnv } from './readFirstEnv';
+import { readFirstEnv } from './readFirstEnv.js';
 
 const ORIGINAL_ENV = process.env;
 

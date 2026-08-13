@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // `esnext` rather than `node16`: tsc decides a file's module format from the nearest
+    // package.json, and this one has no `"type": "module"`, so `node16` would emit CommonJS
+    // into the ESM directory. The `.js` specifiers the sources carry are already what ESM
+    // needs, and `bundler` resolution accepts them without demanding the CJS layout.
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "outDir": "./dist/esm"
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    // The aggregate clients barrel is CommonJS by design: it installs each client as a getter
+    // that `require`s its module on first access, which is what keeps `awpaki/clients` from
+    // loading thirteen AWS SDKs. ESM has no synchronous require, and `createRequire` fails
+    // under the very esbuild ESM bundling this build exists to support. Compiled as an ES
+    // module it would emit `exports.x = undefined` verbatim and throw `exports is not
+    // defined` at import — so `./clients` stays CommonJS in both conditions.
+    "src/clients/index.ts"
+  ]
+}

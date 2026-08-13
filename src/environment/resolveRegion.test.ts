@@ -1,4 +1,4 @@
-import { resolveRegion } from './resolveRegion';
+import { resolveRegion } from './resolveRegion.js';
 
 const ORIGINAL_ENV = process.env;
 

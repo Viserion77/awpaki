@@ -5,7 +5,7 @@ import {
   encodeFlags,
   hasFlag,
   removeFlag,
-} from './permissionsBitmask';
+} from './permissionsBitmask.js';
 
 describe('encodeFlags', () => {
   it('should build a mask from bit positions', () => {

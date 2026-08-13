@@ -1,4 +1,4 @@
-import { cleanRecord, compareJsonDiff, mergeObjectChanges } from './objects';
+import { cleanRecord, compareJsonDiff, mergeObjectChanges } from './objects.js';
 
 describe('cleanRecord', () => {
   it('should remove keys holding undefined', () => {
@@ -358,5 +358,45 @@ describe('mergeObjectChanges', () => {
 
     expect(result.name).toBe('a');
     expect(result.retries).toBe(5);
+  });
+
+  // The documented use is a PATCH handler, so `newObj` is `JSON.parse` of an
+  // attacker-controlled body — the one input that can carry an own `__proto__` key.
+  describe('a __proto__ key in the payload', () => {
+    it('should stay a data key instead of replacing the result prototype', () => {
+      const payload = JSON.parse('{"__proto__": {"role": "admin"}}') as Record<string, unknown>;
+
+      const merged = mergeObjectChanges<Record<string, unknown>>({ name: 'a' }, payload);
+
+      expect(merged.role).toBeUndefined();
+      expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+      expect(Object.keys(merged)).toContain('__proto__');
+      expect(Object.getOwnPropertyDescriptor(merged, '__proto__')?.value).toEqual({
+        role: 'admin',
+      });
+    });
+
+    it('should not leak into Object.prototype', () => {
+      const payload = JSON.parse('{"__proto__": {"polluted": true}}') as Record<string, unknown>;
+
+      mergeObjectChanges({}, payload);
+
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+
+    it('should survive cleanRecord and compareJsonDiff the same way', () => {
+      const payload = JSON.parse('{"__proto__": {"role": "admin"}, "name": "a"}') as Record<
+        string,
+        unknown
+      >;
+
+      const cleaned = cleanRecord(payload);
+      expect(Object.getPrototypeOf(cleaned)).toBe(Object.prototype);
+      expect(Object.keys(cleaned)).toEqual(['__proto__', 'name']);
+
+      const { diff } = compareJsonDiff({}, payload);
+      expect(Object.getPrototypeOf(diff)).toBe(Object.prototype);
+      expect(Object.keys(diff)).toContain('__proto__');
+    });
   });
 });

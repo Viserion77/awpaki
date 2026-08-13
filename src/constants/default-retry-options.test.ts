@@ -1,5 +1,5 @@
-import type { RetryOptions } from '../clients/index.types';
-import { defaultRetryOptions } from './default-retry-options';
+import type { RetryOptions } from '../clients/index.types.js';
+import { defaultRetryOptions } from './default-retry-options.js';
 
 describe('defaultRetryOptions', () => {
   it('exposes the retry defaults used by every client', () => {
@@ -51,7 +51,7 @@ describe('defaultRetryOptions', () => {
 
   it('is the same object on every import (single shared source)', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const reimported = require('./default-retry-options').defaultRetryOptions;
+    const reimported = require('./default-retry-options.js').defaultRetryOptions;
 
     expect(reimported).toBe(defaultRetryOptions);
   });

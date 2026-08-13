@@ -35,8 +35,8 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Callback, Context } from 'aws-lambda';
-import { getLogger, setLogSink, toErrorLog } from './logger';
-import type { LogSink } from './logger';
+import { getLogger, setLogLevel, setLogSink, toErrorLog } from './logger.js';
+import type { LogLevel, LogSink } from './logger.js';
 
 /**
  * How long before the Lambda deadline the buffer is flushed, in milliseconds.
@@ -51,6 +51,15 @@ export const DEFAULT_PRE_TIMEOUT_MARGIN_MS = 2000;
  * the field a CloudWatch Logs Insights query filters on.
  */
 export const TRACKING_LOG_MESSAGE = 'invocation tracking';
+
+/**
+ * Default ceiling on the number of lines held per invocation.
+ *
+ * A thousand lines is far more context than any failure needs to be diagnosed, and at a
+ * typical ~1 KB a line it bounds the buffer at about a megabyte — negligible against the
+ * smallest Lambda memory setting, where an unbounded buffer over a large batch is not.
+ */
+export const DEFAULT_MAX_BUFFERED_LINES = 1000;
 
 /**
  * Level that releases the buffered lines when a log record of that severity is emitted.
@@ -109,6 +118,31 @@ export interface RuntimeLogCollectorOptions<TEvent = unknown> {
    * collector owns the sink installed with `setLogSink`.
    */
   output?: LogSink;
+
+  /**
+   * Level the default logger is set to while the collector is installed. Defaults to
+   * `'debug'`.
+   *
+   * The logger's own threshold is INFO, which drops DEBUG before it is ever written — and
+   * DEBUG is precisely what this collector exists to hold: buffered, free on a successful
+   * invocation, released as context when one fails. Leaving the two defaults to fight would
+   * give a buffer with nothing worth having in it. Applied once, when the handler is wrapped;
+   * pass `'info'` to keep the gate closed, or set the level yourself afterwards.
+   */
+  logLevel?: LogLevel;
+
+  /**
+   * Maximum number of lines held in the buffer. Defaults to
+   * {@link DEFAULT_MAX_BUFFERED_LINES}.
+   *
+   * The buffer used to be unbounded: a handler logging per item of a large batch retained
+   * every line until the invocation ended, and a 10k-record batch at ~1 KB a line is ~20 MB
+   * held in a function that may only have 128 MB — where an OOM kill emits nothing at all,
+   * so the buffer meant to preserve diagnostics destroys them. On overflow the **oldest**
+   * lines are dropped, since the ones nearest the failure explain it best, and the count is
+   * reported when the buffer is released.
+   */
+  maxBufferedLines?: number;
 }
 
 /**
@@ -152,6 +186,10 @@ interface InvocationState {
   readonly fallbackKey: string | undefined;
   readonly output: LogSink;
   readonly context: Context | undefined;
+  /** Ceiling on `buffer`, so a large batch cannot retain the whole invocation in memory. */
+  readonly maxBufferedLines: number;
+  /** Lines dropped to stay under the ceiling, reported when the buffer is released. */
+  droppedLines: number;
 }
 
 const storage = new AsyncLocalStorage<InvocationState>();
@@ -199,10 +237,43 @@ function releaseBuffer(state: InvocationState): void {
   if (state.flushed) return;
   state.flushed = true;
 
+  // A gap in the released context must never be silent: without this line the log reads as a
+  // complete history of the invocation when it is in fact the tail of one.
+  if (state.droppedLines > 0) {
+    emitLine(
+      state,
+      JSON.stringify({
+        level: 'WARN',
+        timestamp: new Date().toISOString(),
+        msg: 'awpaki log buffer overflowed, oldest lines were dropped',
+        droppedLines: state.droppedLines,
+        maxBufferedLines: state.maxBufferedLines,
+      })
+    );
+  }
+
   for (const line of state.buffer) {
     emitLine(state, line);
   }
   state.buffer.length = 0;
+}
+
+/**
+ * Adds a line to the buffer, dropping the oldest ones once the ceiling is reached.
+ *
+ * The lines nearest the failure are the ones that explain it, so the window slides forward
+ * rather than refusing new lines.
+ *
+ * @param state - Invocation state owning the buffer
+ * @param line - Already serialized single line JSON
+ */
+function bufferLine(state: InvocationState, line: string): void {
+  state.buffer.push(line);
+
+  while (state.buffer.length > state.maxBufferedLines) {
+    state.buffer.shift();
+    state.droppedLines += 1;
+  }
 }
 
 /**
@@ -325,7 +396,7 @@ const collectorSink: LogSink = (line: string): void => {
     return;
   }
 
-  state.buffer.push(line);
+  bufferLine(state, line);
 };
 
 /**
@@ -473,6 +544,19 @@ export function withRuntimeLogCollector<TEvent = unknown, TResult = unknown>(
       : DEFAULT_PRE_TIMEOUT_MARGIN_MS;
   const output: LogSink = typeof options.output === 'function' ? options.output : writeToStdout;
   const fallbackKey = normalizeKey(options.trackingKey?.fallbackKey);
+  const maxBufferedLines =
+    typeof options.maxBufferedLines === 'number' &&
+    Number.isFinite(options.maxBufferedLines) &&
+    options.maxBufferedLines > 0
+      ? Math.floor(options.maxBufferedLines)
+      : DEFAULT_MAX_BUFFERED_LINES;
+
+  // Wrapping a handler in the collector *is* the statement that verbose records are wanted
+  // and paid for only on failure, so the logger's INFO gate would otherwise discard exactly
+  // what the buffer exists to keep. Done once, at wrap time rather than per invocation: the
+  // threshold is process-wide, and moving it inside the invocation would let two concurrent
+  // ones fight over it.
+  setLogLevel(options.logLevel ?? 'debug');
 
   return async (
     event: TEvent,
@@ -485,6 +569,8 @@ export function withRuntimeLogCollector<TEvent = unknown, TResult = unknown>(
 
     const state: InvocationState = {
       buffer: [],
+      maxBufferedLines,
+      droppedLines: 0,
       flushed: false,
       bypass: false,
       trackingEmitted: false,

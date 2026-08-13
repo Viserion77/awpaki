@@ -142,6 +142,24 @@ export const HttpErrorStatus = {
 export type HttpErrorStatusType = (typeof HttpErrorStatus)[keyof typeof HttpErrorStatus];
 
 /**
+ * Numeric members of {@link HttpStatus}, for the guards below.
+ *
+ * A TypeScript numeric enum is a two-way map at runtime: `Object.values(HttpStatus)` yields
+ * the member *names* as well as the codes, so an `includes` over it answered `true` for the
+ * string `'NOT_FOUND'` — a guard that narrowed a value which is not a status code at all.
+ * Filtering to numbers once, at module load, fixes the answer and makes the lookup O(1).
+ */
+const VALID_HTTP_STATUS_CODES: ReadonlySet<number> = new Set(
+  Object.values(HttpStatus).filter((value): value is HttpStatus => typeof value === 'number')
+);
+
+/**
+ * Codes of {@link HttpErrorStatus}, whose object literal has no reverse mapping but is read
+ * through the same guard shape.
+ */
+const VALID_HTTP_ERROR_STATUS_CODES: ReadonlySet<number> = new Set(Object.values(HttpErrorStatus));
+
+/**
  * Type guard to check if a number is a valid HTTP status code
  * Validates against all standard HTTP status codes (1xx, 2xx, 3xx, 4xx, 5xx)
  *
@@ -156,7 +174,7 @@ export type HttpErrorStatusType = (typeof HttpErrorStatus)[keyof typeof HttpErro
  * ```
  */
 export function isValidHttpStatus(code: number): code is HttpStatus {
-  return Object.values(HttpStatus).includes(code as HttpStatus);
+  return VALID_HTTP_STATUS_CODES.has(code);
 }
 
 /**
@@ -174,7 +192,7 @@ export function isValidHttpStatus(code: number): code is HttpStatus {
  * ```
  */
 export function isValidHttpErrorStatus(code: number): code is HttpErrorStatusType {
-  return Object.values(HttpErrorStatus).includes(code as HttpErrorStatusType);
+  return VALID_HTTP_ERROR_STATUS_CODES.has(code);
 }
 
 /**
@@ -212,3 +230,40 @@ export function getHttpStatusName(
 
   return statusNames[status as HttpErrorStatusType];
 }
+
+/**
+ * Stable `snake_case` code for a status, used as the default {@link HttpError.code}.
+ *
+ * Derived from the **status code**, never from `constructor.name`: consumers bundle Lambdas
+ * with esbuild, which mangles class identifiers unless `--keep-names` is set (it is off by
+ * default there, in CDK's `NodejsFunction` and in most serverless-esbuild setups), so a
+ * minified `new NotFound(...).constructor.name` is `'e'`. A value that clients switch on
+ * must not depend on an identifier surviving minification; object property names do survive.
+ *
+ * @param status - HTTP status code
+ * @returns The conventional code for that status, or `http_<status>` when it has no name
+ *
+ * @example
+ * ```typescript
+ * getDefaultErrorCode(404); // 'not_found'
+ * getDefaultErrorCode(418); // 'http_418'
+ * ```
+ */
+export function getDefaultErrorCode(status: number): string {
+  return DEFAULT_ERROR_CODES[status] ?? `http_${status}`;
+}
+
+const DEFAULT_ERROR_CODES: Record<number, string> = {
+  [HttpErrorStatus.BAD_REQUEST]: 'bad_request',
+  [HttpErrorStatus.UNAUTHORIZED]: 'unauthorized',
+  [HttpErrorStatus.FORBIDDEN]: 'forbidden',
+  [HttpErrorStatus.NOT_FOUND]: 'not_found',
+  [HttpErrorStatus.CONFLICT]: 'conflict',
+  [HttpErrorStatus.PRECONDITION_FAILED]: 'precondition_failed',
+  [HttpErrorStatus.UNPROCESSABLE_ENTITY]: 'unprocessable_entity',
+  [HttpErrorStatus.TOO_MANY_REQUESTS]: 'too_many_requests',
+  [HttpErrorStatus.INTERNAL_SERVER_ERROR]: 'internal_server_error',
+  [HttpErrorStatus.NOT_IMPLEMENTED]: 'not_implemented',
+  [HttpErrorStatus.BAD_GATEWAY]: 'bad_gateway',
+  [HttpErrorStatus.SERVICE_UNAVAILABLE]: 'service_unavailable',
+};

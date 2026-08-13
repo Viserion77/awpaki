@@ -1,22 +1,30 @@
 import { TimestreamQueryClient } from '@aws-sdk/client-timestream-query';
 import { TimestreamWriteClient } from '@aws-sdk/client-timestream-write';
-import retry from 'async-retry';
-import { defaultRetryOptions } from '../../constants/default-retry-options';
-import { resolveEndpoint, resolveRegion } from '../../environment';
-import type { RetryOptions } from '../index.types';
+import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
+import { createLazyClient } from '../lazyClient.js';
+import { withRetry } from '../retry/withRetry.js';
+import type { RetryOptions } from '../index.types.js';
 
 // Timestream splits its API in two endpoints, so the override cascade has three levels:
 // the operation specific variable, then the shared AWS_ENDPOINT_URL_TIMESTREAM, then the
 // global AWS_ENDPOINT_URL (appended by resolveEndpoint).
-const queryClient = new TimestreamQueryClient({
-  region: resolveRegion(),
-  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_TIMESTREAM_QUERY', 'AWS_ENDPOINT_URL_TIMESTREAM'),
-});
+// Built on first use, not at import: the region and endpoint are then read from the
+// environment the caller actually has, and a test can swap them with `resetAwsClients()`.
+const lazyQueryClient = createLazyClient(
+  () =>
+    new TimestreamQueryClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_TIMESTREAM_QUERY', 'AWS_ENDPOINT_URL_TIMESTREAM'),
+    })
+);
 
-const writeClient = new TimestreamWriteClient({
-  region: resolveRegion(),
-  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_TIMESTREAM_WRITE', 'AWS_ENDPOINT_URL_TIMESTREAM'),
-});
+const lazyWriteClient = createLazyClient(
+  () =>
+    new TimestreamWriteClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_TIMESTREAM_WRITE', 'AWS_ENDPOINT_URL_TIMESTREAM'),
+    })
+);
 
 /**
  * Runs a Timestream send call with the retry policy of the package.
@@ -27,21 +35,10 @@ const writeClient = new TimestreamWriteClient({
  */
 async function executeWithRetry<T>(
   send: () => Promise<unknown>,
-  retryOptions?: RetryOptions
+  retryOptions?: RetryOptions,
+  command?: string
 ): Promise<T> {
-  const options = { ...defaultRetryOptions, ...retryOptions };
-
-  return retry(
-    async () => {
-      const result = await send();
-      return result as T;
-    },
-    {
-      retries: options.retries,
-      minTimeout: options.minTimeout,
-      maxTimeout: options.maxTimeout,
-    }
-  );
+  return withRetry({ service: 'timestream', command }, () => send() as Promise<T>, retryOptions);
 }
 
 /**
@@ -74,7 +71,11 @@ export const timestreamQueryClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    return executeWithRetry<T>(() => queryClient.send(command), retryOptions);
+    return executeWithRetry<T>(
+      () => lazyQueryClient.get().send(command),
+      retryOptions,
+      command?.constructor?.name
+    );
   },
 };
 
@@ -106,6 +107,10 @@ export const timestreamWriteClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    return executeWithRetry<T>(() => writeClient.send(command), retryOptions);
+    return executeWithRetry<T>(
+      () => lazyWriteClient.get().send(command),
+      retryOptions,
+      command?.constructor?.name
+    );
   },
 };

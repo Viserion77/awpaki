@@ -54,10 +54,57 @@ const IMAGE_MIME_TYPE_SET: ReadonlySet<string> = new Set<string>(IMAGE_MIME_TYPE
  * ```
  */
 export function isImage(value: unknown): boolean {
+  return isKnownMimeType(value, IMAGE_MIME_TYPE_SET);
+}
+
+/**
+ * Image MIME types that are **raster** data, i.e. every entry of {@link IMAGE_MIME_TYPES}
+ * except SVG.
+ *
+ * SVG is a genuine image type, so removing it from `IMAGE_MIME_TYPES` would be wrong — but it
+ * is also an XML document that a browser executes, scripts and all, which is why it is the one
+ * type an upload gate usually must reject. Two names, two jobs.
+ */
+export const RASTER_IMAGE_MIME_TYPES = IMAGE_MIME_TYPES.filter(
+  (mimeType) => mimeType !== 'image/svg+xml'
+);
+
+const RASTER_IMAGE_MIME_TYPE_SET: ReadonlySet<string> = new Set<string>(RASTER_IMAGE_MIME_TYPES);
+
+/**
+ * Checks whether a value is an image MIME type that carries raster data.
+ *
+ * Same normalization as {@link isImage} — case insensitive, whitespace and MIME parameters
+ * ignored — but SVG is rejected, so this is the check to gate an upload that will be served
+ * back to a browser.
+ *
+ * @param value - Value to validate, of any type
+ * @returns `true` when the value is a known raster image MIME type
+ *
+ * @example
+ * ```typescript
+ * isRasterImage('image/png');     // true
+ * isRasterImage('image/svg+xml'); // false — an executable document, not raster data
+ * ```
+ */
+export function isRasterImage(value: unknown): boolean {
+  return isKnownMimeType(value, RASTER_IMAGE_MIME_TYPE_SET);
+}
+
+/**
+ * Normalizes a MIME type and looks it up in an allow list.
+ *
+ * Shared so the two checks can never disagree about what counts as `' IMAGE/PNG; q=1 '`.
+ *
+ * @param value - Value to validate, of any type
+ * @param allowList - Set of accepted MIME types, lower-cased
+ * @returns `true` when the normalized value is in the list
+ */
+function isKnownMimeType(value: unknown, allowList: ReadonlySet<string>): boolean {
   if (typeof value !== 'string') return false;
 
   const mimeType = value.split(';')[0].trim().toLowerCase();
   if (mimeType.length === 0) return false;
 
-  return IMAGE_MIME_TYPE_SET.has(mimeType);
+  return allowList.has(mimeType);
 }

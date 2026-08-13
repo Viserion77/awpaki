@@ -1,4 +1,4 @@
-import { isValidFullName } from './index';
+import { isValidFullName } from './index.js';
 
 describe('isValidFullName', () => {
   it('should accept names with two or more valid words', () => {

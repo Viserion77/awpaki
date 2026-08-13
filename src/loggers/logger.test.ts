@@ -1,15 +1,24 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
+  DEFAULT_LOG_LEVEL,
+  DEFAULT_REDACT_KEYS,
+  addRedactKeys,
   defaultLogger,
+  getLogLevel,
   getLogger,
+  getRedactKeys,
+  resetLogLevel,
   resetLogSink,
   resetLogger,
+  resetRedactKeys,
+  setLogLevel,
   setLogSink,
   setLogger,
+  setRedactKeys,
   toErrorLog,
-} from './logger';
-import type { Logger } from './logger';
+} from './logger.js';
+import type { Logger } from './logger.js';
 
 /** Lines captured from process.stdout during a test. */
 let stdoutLines: string[] = [];
@@ -27,6 +36,9 @@ const lastRecord = (): Record<string, any> => parseLine(stdoutLines[stdoutLines.
 
 beforeEach(() => {
   stdoutLines = [];
+  // Most of this suite predates the level gate and asserts on DEBUG output, which the INFO
+  // default now drops. The gate has its own describe block below.
+  setLogLevel('debug');
   stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
     stdoutLines.push(String(chunk));
     return true;
@@ -36,6 +48,8 @@ beforeEach(() => {
 
 afterEach(() => {
   stdoutSpy.mockRestore();
+  resetLogLevel();
+  resetRedactKeys();
   resetLogger();
   resetLogSink();
   if (originalLogFormat === undefined) {
@@ -158,13 +172,34 @@ describe('AWS_LAMBDA_LOG_FORMAT handling', () => {
     expect(lastRecord().time).toBeDefined();
   });
 
-  it('omits its own time under Advanced Logging Controls (JSON), the platform stamps it', () => {
+  // Advanced Logging Controls assigns level INFO to a JSON record with no valid RFC 3339
+  // timestamp and drops the `level` field, so omitting the stamp defeated the filtering it
+  // was delegating to: DEBUG records were reclassified as INFO and ingested.
+  it('stamps an RFC 3339 timestamp under Advanced Logging Controls (JSON)', () => {
     process.env.AWS_LAMBDA_LOG_FORMAT = 'JSON';
     defaultLogger.error({ a: 1 }, 'json mode');
 
     const record = lastRecord();
     expect('time' in record).toBe(false);
-    expect(record).toEqual({ level: 'ERROR', msg: 'json mode', a: 1 });
+    expect(record.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/);
+    expect(record).toEqual({
+      level: 'ERROR',
+      timestamp: record.timestamp,
+      msg: 'json mode',
+      a: 1,
+    });
+  });
+
+  // The runtime log collector classifies an already serialized line with a positional
+  // regex, so `level` losing first place stops WARN and ERROR passing through the buffer.
+  it('keeps level as the first key in both formats', () => {
+    defaultLogger.warn({}, 'text mode');
+    process.env.AWS_LAMBDA_LOG_FORMAT = 'JSON';
+    defaultLogger.warn({}, 'json mode');
+
+    for (const line of stdoutLines) {
+      expect(line.startsWith('{"level":"WARN"')).toBe(true);
+    }
   });
 
   it('reads the env var on every call, not at module load', () => {
@@ -234,6 +269,29 @@ describe('error serialization', () => {
 
     expect(() => defaultLogger.error(error, 'loop')).not.toThrow();
     expect(lastRecord().err.cause).toBe('[Circular]');
+  });
+
+  // A visited-set marks the second sighting of a shared object as circular, which is the
+  // ordinary shape of `{ err, event }` where both reference the same record.
+  it('serializes a value referenced twice instead of calling it circular', () => {
+    const shared = { tenantId: 'acme' };
+
+    defaultLogger.info({ params: shared, event: { detail: shared } }, 'shared');
+
+    const record = lastRecord();
+    expect(record.params).toEqual({ tenantId: 'acme' });
+    expect(record.event.detail).toEqual({ tenantId: 'acme' });
+  });
+
+  it('still detects a real cycle one level below a shared reference', () => {
+    const shared: Record<string, unknown> = { tenantId: 'acme' };
+    shared.self = shared;
+
+    defaultLogger.info({ a: shared, b: shared }, 'cyclic');
+
+    const record = lastRecord();
+    expect(record.a.self).toBe('[Circular]');
+    expect(record.b).toEqual({ tenantId: 'acme', self: '[Circular]' });
   });
 
   it('serializes bigint, symbol and function values instead of dropping them', () => {
@@ -425,6 +483,172 @@ describe('toErrorLog', () => {
 
     defaultLogger.error(toErrorLog('as string'), 'second');
     expect(lastRecord().err).toBe('as string');
+  });
+});
+
+describe('level gate', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('defaults to INFO, so DEBUG is not emitted without being asked for', () => {
+    resetLogLevel();
+    delete process.env.AWPAKI_LOG_LEVEL;
+    delete process.env.AWS_LAMBDA_LOG_LEVEL;
+    delete process.env.LOG_LEVEL;
+
+    expect(getLogLevel()).toBe(DEFAULT_LOG_LEVEL);
+
+    defaultLogger.debug({ authorization: 'Bearer x' }, 'debug');
+    defaultLogger.info({}, 'info');
+
+    expect(stdoutLines.map((line) => parseLine(line).msg)).toEqual(['info']);
+  });
+
+  it('emits every level at or above the threshold', () => {
+    setLogLevel('warn');
+
+    defaultLogger.debug({}, 'd');
+    defaultLogger.info({}, 'i');
+    defaultLogger.warn({}, 'w');
+    defaultLogger.error({}, 'e');
+
+    expect(stdoutLines.map((line) => parseLine(line).level)).toEqual(['WARN', 'ERROR']);
+  });
+
+  it('reads AWPAKI_LOG_LEVEL, then AWS_LAMBDA_LOG_LEVEL, then LOG_LEVEL', () => {
+    resetLogLevel();
+    process.env.LOG_LEVEL = 'error';
+    expect(getLogLevel()).toBe('error');
+
+    process.env.AWS_LAMBDA_LOG_LEVEL = 'warn';
+    expect(getLogLevel()).toBe('warn');
+
+    process.env.AWPAKI_LOG_LEVEL = 'debug';
+    expect(getLogLevel()).toBe('debug');
+  });
+
+  it('accepts the AWS uppercase spelling', () => {
+    resetLogLevel();
+    process.env.AWPAKI_LOG_LEVEL = 'DEBUG';
+
+    expect(getLogLevel()).toBe('debug');
+  });
+
+  it('ignores an unusable value rather than silencing the logger', () => {
+    resetLogLevel();
+    process.env.AWPAKI_LOG_LEVEL = 'verbose';
+
+    expect(getLogLevel()).toBe(DEFAULT_LOG_LEVEL);
+  });
+
+  // The env vars are read per record: a Lambda container outlives a configuration change,
+  // and a cached threshold would make the level unsettable from a test body.
+  it('re-reads the environment on every record', () => {
+    resetLogLevel();
+    process.env.AWPAKI_LOG_LEVEL = 'error';
+    defaultLogger.info({}, 'dropped');
+
+    process.env.AWPAKI_LOG_LEVEL = 'info';
+    defaultLogger.info({}, 'kept');
+
+    expect(stdoutLines.map((line) => parseLine(line).msg)).toEqual(['kept']);
+  });
+
+  it('lets a level set in code win over the environment', () => {
+    process.env.AWPAKI_LOG_LEVEL = 'error';
+    setLogLevel('debug');
+
+    expect(getLogLevel()).toBe('debug');
+  });
+
+  it('rejects an unknown level', () => {
+    expect(() => setLogLevel('verbose' as never)).toThrow(TypeError);
+  });
+
+  it('does not apply to a logger installed with setLogger, which owns its own output', () => {
+    const custom = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
+    setLogger(custom as Logger);
+    setLogLevel('error');
+
+    getLogger().debug({}, 'still delivered');
+
+    expect(custom.debug).toHaveBeenCalled();
+  });
+});
+
+describe('redaction', () => {
+  it('replaces the value of a sensitive key, at any depth', () => {
+    defaultLogger.info(
+      {
+        headers: { authorization: 'Bearer secret-token', 'x-request-id': 'abc' },
+        user: { password: 'hunter2', name: 'ada' },
+      },
+      'entry'
+    );
+
+    const record = lastRecord();
+    expect(record.headers.authorization).toBe('[REDACTED]');
+    expect(record.headers['x-request-id']).toBe('abc');
+    expect(record.user.password).toBe('[REDACTED]');
+    expect(record.user.name).toBe('ada');
+  });
+
+  it('covers both casings, because a header map and a decoded token disagree', () => {
+    defaultLogger.info({ Authorization: 'Bearer x', idToken: 'y', id_token: 'z' }, 'casing');
+
+    const record = lastRecord();
+    expect(record.Authorization).toBe('[REDACTED]');
+    expect(record.idToken).toBe('[REDACTED]');
+    expect(record.id_token).toBe('[REDACTED]');
+  });
+
+  // Substring matching would redact `secretId` in the Secrets Manager client, which names a
+  // secret rather than being one.
+  it('matches key names exactly, never as substrings', () => {
+    defaultLogger.info({ secretId: 'prod/db', authorizationScheme: 'jwt' }, 'names');
+
+    const record = lastRecord();
+    expect(record.secretId).toBe('prod/db');
+    expect(record.authorizationScheme).toBe('jwt');
+  });
+
+  it('redacts inside the own properties of an error', () => {
+    const error = Object.assign(new Error('nope'), { password: 'hunter2' });
+
+    defaultLogger.error(toErrorLog(error), 'failed');
+
+    expect(lastRecord().err.password).toBe('[REDACTED]');
+  });
+
+  it('can be extended without losing the defaults', () => {
+    addRedactKeys(['cpf']);
+
+    defaultLogger.info({ cpf: '000', authorization: 'Bearer x' }, 'extended');
+
+    const record = lastRecord();
+    expect(record.cpf).toBe('[REDACTED]');
+    expect(record.authorization).toBe('[REDACTED]');
+    expect(getRedactKeys()).toContain('cpf');
+  });
+
+  it('can be replaced entirely', () => {
+    setRedactKeys(['onlyThis']);
+
+    defaultLogger.info({ onlyThis: 'x', authorization: 'Bearer x' }, 'replaced');
+
+    const record = lastRecord();
+    expect(record.onlyThis).toBe('[REDACTED]');
+    expect(record.authorization).toBe('Bearer x');
+  });
+
+  it('is restored by reset', () => {
+    setRedactKeys([]);
+    resetRedactKeys();
+
+    expect(getRedactKeys()).toEqual([...DEFAULT_REDACT_KEYS]);
   });
 });
 

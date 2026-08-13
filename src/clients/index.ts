@@ -2,7 +2,7 @@
  * Lazy barrel for the AWS clients of the package.
  *
  * Every client module instantiates an AWS SDK client at import time, so a plain
- * `export … from './s3/index'` here would force `require('awpaki/clients')` to load the
+ * `export … from './s3/index.js'` here would force `require('awpaki/clients')` to load the
  * thirteen optional `@aws-sdk/*` peers — and to crash with `MODULE_NOT_FOUND` for anyone
  * who installed only the services they use. Each name below is therefore installed as a
  * getter that requires its module on first access (Node's module cache makes every later
@@ -31,7 +31,12 @@
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the deferred require() is the point of this module */
 
-export type { RetryOptions } from './index.types';
+export type { RetryOptions } from './index.types.js';
+
+// Drops every cached client so the next call rebuilds it from the current environment. Safe
+// to re-export eagerly: `lazyClient` imports no AWS SDK, which is the constraint this whole
+// barrel exists to respect.
+export { resetAwsClients } from './lazyClient.js';
 
 /**
  * Builds the stand-in returned when a client's optional peer is not installed.
@@ -79,7 +84,7 @@ function lazyClient<T>(load: () => T, subpath: string): T {
     return load();
   } catch (error) {
     const message = (error as Error | null)?.message ?? '';
-    const missing = /Cannot find module '(@aws-sdk\/[^']+|async-retry)'/.exec(message)?.[1];
+    const missing = /Cannot find module '(@aws-sdk\/[^']+)'/.exec(message)?.[1];
 
     if ((error as NodeJS.ErrnoException | null)?.code !== 'MODULE_NOT_FOUND' || !missing) {
       throw error;
@@ -97,22 +102,22 @@ export type {
   MultiValueInput,
   InvokeLambdaOptions,
   InvokeLambdaResult,
-} from './lambda/index';
-export type { SecretAwsCredentials } from './secretsmanager/index';
+} from './lambda/index.js';
+export type { SecretAwsCredentials } from './secretsmanager/index.js';
 
-export declare const dynamodbClient: typeof import('./dynamodb/index').dynamodbClient;
-export declare const s3Client: typeof import('./s3/index').s3Client;
-export declare const sqsClient: typeof import('./sqs/index').sqsClient;
-export declare const lambdaClient: typeof import('./lambda/index').lambdaClient;
-export declare const snsClient: typeof import('./sns/index').snsClient;
-export declare const iotClient: typeof import('./iot/index').iotClient;
-export declare const openSearchClient: typeof import('./opensearch/index').openSearchClient;
-export declare const sesClient: typeof import('./ses/index').sesClient;
-export declare const cloudWatchClient: typeof import('./cloudwatch/index').cloudWatchClient;
-export declare const apiGatewayClient: typeof import('./apigateway/index').apiGatewayClient;
-export declare const secretsManagerClient: typeof import('./secretsmanager/index').secretsManagerClient;
-export declare const timestreamQueryClient: typeof import('./timestream/index').timestreamQueryClient;
-export declare const timestreamWriteClient: typeof import('./timestream/index').timestreamWriteClient;
+export declare const dynamodbClient: typeof import('./dynamodb/index.js').dynamodbClient;
+export declare const s3Client: typeof import('./s3/index.js').s3Client;
+export declare const sqsClient: typeof import('./sqs/index.js').sqsClient;
+export declare const lambdaClient: typeof import('./lambda/index.js').lambdaClient;
+export declare const snsClient: typeof import('./sns/index.js').snsClient;
+export declare const iotClient: typeof import('./iot/index.js').iotClient;
+export declare const openSearchClient: typeof import('./opensearch/index.js').openSearchClient;
+export declare const sesClient: typeof import('./ses/index.js').sesClient;
+export declare const cloudWatchClient: typeof import('./cloudwatch/index.js').cloudWatchClient;
+export declare const apiGatewayClient: typeof import('./apigateway/index.js').apiGatewayClient;
+export declare const secretsManagerClient: typeof import('./secretsmanager/index.js').secretsManagerClient;
+export declare const timestreamQueryClient: typeof import('./timestream/index.js').timestreamQueryClient;
+export declare const timestreamWriteClient: typeof import('./timestream/index.js').timestreamWriteClient;
 
 // `export declare` emits no runtime binding, so the names are declared here as plain
 // `exports.<name>` assignments before being replaced by the getters below. Node's
@@ -139,62 +144,71 @@ Object.defineProperties(module.exports, {
     enumerable: true,
     configurable: true,
     get: () =>
-      lazyClient(() => require('./dynamodb/index').dynamodbClient, 'awpaki/clients/dynamodb'),
+      lazyClient(() => require('./dynamodb/index.js').dynamodbClient, 'awpaki/clients/dynamodb'),
   },
   s3Client: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./s3/index').s3Client, 'awpaki/clients/s3'),
+    get: () => lazyClient(() => require('./s3/index.js').s3Client, 'awpaki/clients/s3'),
   },
   sqsClient: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./sqs/index').sqsClient, 'awpaki/clients/sqs'),
+    get: () => lazyClient(() => require('./sqs/index.js').sqsClient, 'awpaki/clients/sqs'),
   },
   lambdaClient: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./lambda/index').lambdaClient, 'awpaki/clients/lambda'),
+    get: () => lazyClient(() => require('./lambda/index.js').lambdaClient, 'awpaki/clients/lambda'),
   },
   snsClient: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./sns/index').snsClient, 'awpaki/clients/sns'),
+    get: () => lazyClient(() => require('./sns/index.js').snsClient, 'awpaki/clients/sns'),
   },
   iotClient: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./iot/index').iotClient, 'awpaki/clients/iot'),
+    get: () => lazyClient(() => require('./iot/index.js').iotClient, 'awpaki/clients/iot'),
   },
   openSearchClient: {
     enumerable: true,
     configurable: true,
     get: () =>
-      lazyClient(() => require('./opensearch/index').openSearchClient, 'awpaki/clients/opensearch'),
+      lazyClient(
+        () => require('./opensearch/index.js').openSearchClient,
+        'awpaki/clients/opensearch'
+      ),
   },
   sesClient: {
     enumerable: true,
     configurable: true,
-    get: () => lazyClient(() => require('./ses/index').sesClient, 'awpaki/clients/ses'),
+    get: () => lazyClient(() => require('./ses/index.js').sesClient, 'awpaki/clients/ses'),
   },
   cloudWatchClient: {
     enumerable: true,
     configurable: true,
     get: () =>
-      lazyClient(() => require('./cloudwatch/index').cloudWatchClient, 'awpaki/clients/cloudwatch'),
+      lazyClient(
+        () => require('./cloudwatch/index.js').cloudWatchClient,
+        'awpaki/clients/cloudwatch'
+      ),
   },
   apiGatewayClient: {
     enumerable: true,
     configurable: true,
     get: () =>
-      lazyClient(() => require('./apigateway/index').apiGatewayClient, 'awpaki/clients/apigateway'),
+      lazyClient(
+        () => require('./apigateway/index.js').apiGatewayClient,
+        'awpaki/clients/apigateway'
+      ),
   },
   secretsManagerClient: {
     enumerable: true,
     configurable: true,
     get: () =>
       lazyClient(
-        () => require('./secretsmanager/index').secretsManagerClient,
+        () => require('./secretsmanager/index.js').secretsManagerClient,
         'awpaki/clients/secretsmanager'
       ),
   },
@@ -203,7 +217,7 @@ Object.defineProperties(module.exports, {
     configurable: true,
     get: () =>
       lazyClient(
-        () => require('./timestream/index').timestreamQueryClient,
+        () => require('./timestream/index.js').timestreamQueryClient,
         'awpaki/clients/timestream'
       ),
   },
@@ -212,7 +226,7 @@ Object.defineProperties(module.exports, {
     configurable: true,
     get: () =>
       lazyClient(
-        () => require('./timestream/index').timestreamWriteClient,
+        () => require('./timestream/index.js').timestreamWriteClient,
         'awpaki/clients/timestream'
       ),
   },

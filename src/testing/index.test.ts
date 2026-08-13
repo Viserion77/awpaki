@@ -1,9 +1,19 @@
 import type { APIGatewayProxyEvent, APIGatewayProxyEventV2, Context } from 'aws-lambda';
-import { HttpError } from '../errors';
-import { extractEventParams, ParameterType } from '../extractors';
-import { logApiGatewayEvent, logApiGatewayEventV2 } from '../loggers';
-import * as testing from './index';
-import { createMockContext, createMockEventV1, createMockEventV2, createMockFetch } from './index';
+import { HttpError } from '../errors/index.js';
+import { extractEventParams, ParameterType } from '../extractors/index.js';
+import {
+  logApiGatewayEvent,
+  logApiGatewayEventV2,
+  resetLogLevel,
+  setLogLevel,
+} from '../loggers/index.js';
+import * as testing from './index.js';
+import {
+  createMockContext,
+  createMockEventV1,
+  createMockEventV2,
+  createMockFetch,
+} from './index.js';
 
 describe('testing barrel', () => {
   it('exports the four builders', () => {
@@ -149,6 +159,9 @@ describe('interoperability with the library', () => {
 
     beforeEach(() => {
       lines = [];
+      // These assertions cover the headers record too, which is DEBUG and therefore dropped
+      // by the logger's INFO default.
+      setLogLevel('debug');
       writeSpy = jest
         .spyOn(process.stdout, 'write')
         .mockImplementation((chunk: Uint8Array | string): boolean => {
@@ -158,6 +171,7 @@ describe('interoperability with the library', () => {
     });
 
     afterEach(() => {
+      resetLogLevel();
       writeSpy.mockRestore();
     });
 
@@ -183,7 +197,9 @@ describe('interoperability with the library', () => {
       });
       expect(entry.requestTimeEpoch).toBe(event.requestContext.requestTimeEpoch);
       expect(entry.msg).toBe(`Entry API Gateway users-api:${event.requestContext.requestId}`);
-      expect(headers).toMatchObject({ Authorization: 'Bearer token' });
+      // The header record reaches DEBUG, but the credential in it does not: redaction by
+      // key name replaces the value while the record still proves the header was present.
+      expect(headers).toMatchObject({ Authorization: '[REDACTED]' });
     });
 
     it('logs a payload 2.0 event without touching a missing field', () => {
@@ -203,7 +219,7 @@ describe('interoperability with the library', () => {
         apiId: event.requestContext.apiId,
       });
       expect(entry.requestTimeEpoch).toBe(event.requestContext.timeEpoch);
-      expect(headers).toMatchObject({ authorization: 'Bearer token' });
+      expect(headers).toMatchObject({ authorization: '[REDACTED]' });
     });
 
     it('logs both formats of the same call with the same identifying fields', () => {

@@ -1,4 +1,4 @@
-import { DEFAULT_STAGE, resolveStage } from './resolveStage';
+import { DEFAULT_STAGE, resolveStage } from './resolveStage.js';
 
 const ORIGINAL_ENV = process.env;
 
@@ -85,5 +85,38 @@ describe('resolveStage', () => {
     process.env.STAGE = 'qa';
 
     expect(resolveStage()).toBe('qa');
+  });
+
+  describe('options', () => {
+    // Bundlers force NODE_ENV to production and Jest forces it to test, while Lambda never
+    // sets STAGE — so the default chain reports 'production' for a dev deployment.
+    it('can leave NODE_ENV out of the chain', () => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.STAGE;
+
+      expect(resolveStage()).toBe('production');
+      expect(resolveStage({ allowNodeEnv: false })).toBe(DEFAULT_STAGE);
+    });
+
+    it('still prefers STAGE when NODE_ENV is excluded', () => {
+      process.env.STAGE = 'staging';
+      process.env.NODE_ENV = 'production';
+
+      expect(resolveStage({ allowNodeEnv: false })).toBe('staging');
+    });
+
+    it('accepts a different fallback stage', () => {
+      delete process.env.STAGE;
+      delete process.env.NODE_ENV;
+
+      expect(resolveStage({ defaultStage: 'local' })).toBe('local');
+    });
+
+    it('keeps the no-argument behaviour byte-identical', () => {
+      delete process.env.STAGE;
+      delete process.env.NODE_ENV;
+
+      expect(resolveStage()).toBe(DEFAULT_STAGE);
+    });
   });
 });

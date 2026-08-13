@@ -1,4 +1,4 @@
-import { sqsClient } from './index';
+import { sqsClient } from './index.js';
 import { SendMessageCommand, ReceiveMessageCommand } from '@aws-sdk/client-sqs';
 
 describe('sqsClient', () => {

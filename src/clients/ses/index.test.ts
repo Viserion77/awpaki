@@ -1,5 +1,5 @@
 import { ListIdentitiesCommand } from '@aws-sdk/client-ses';
-import { sesClient } from './index';
+import { sesClient } from './index.js';
 
 describe('sesClient', () => {
   it('should have execute method', () => {

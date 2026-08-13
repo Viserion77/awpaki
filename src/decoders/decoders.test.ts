@@ -15,7 +15,7 @@ import {
   isoDateString,
   optionalTrimmedString,
   optionalInteger,
-} from './decoders';
+} from './decoders.js';
 
 /**
  * Runs a decoder and records the outcome, so two decoders can be compared on both
@@ -139,10 +139,19 @@ describe('decoders', () => {
       expect(() => positiveInteger(NaN)).toThrow('Must be a positive number');
     });
 
-    it('should keep the historical parseInt tolerance and pass floats through', () => {
+    it('should keep the historical parseInt tolerance', () => {
       expect(positiveInteger('12px')).toBe(12);
       expect(positiveInteger('3.9')).toBe(3);
-      expect(positiveInteger(1.5)).toBe(1.5);
+    });
+
+    it('should truncate a numeric input, so both encodings of a value agree', () => {
+      expect(positiveInteger(1.5)).toBe(1);
+      expect(positiveInteger(3.9)).toBe(positiveInteger('3.9'));
+    });
+
+    it('should reject a non-finite number instead of handing Infinity through', () => {
+      expect(() => positiveInteger(Infinity)).toThrow('Must be a positive number');
+      expect(() => positiveInteger(-Infinity)).toThrow('Must be a positive number');
     });
   });
 
@@ -186,10 +195,19 @@ describe('decoders', () => {
       expect(() => decoder('abc')).toThrow('Must be a number between 1 and 10');
     });
 
-    it('should keep the historical parseInt tolerance and pass floats through', () => {
+    it('should keep the historical parseInt tolerance', () => {
       const decoder = limitedInteger(1, 10);
       expect(decoder('7items')).toBe(7);
-      expect(decoder(2.5)).toBe(2.5);
+    });
+
+    it('should truncate before the range test, so the boundary stays reachable', () => {
+      expect(limitedInteger(1, 10)(2.5)).toBe(2);
+      expect(limitedInteger(1, 100)(100.9)).toBe(100);
+    });
+
+    it('should reject a non-finite number', () => {
+      const decoder = limitedInteger(1, 10);
+      expect(() => decoder(Infinity)).toThrow('Must be a number between 1 and 10');
     });
 
     it('should accept zero when the range allows it, unlike optionalInteger', () => {
@@ -345,6 +363,17 @@ describe('decoders', () => {
       const statusDecoder = createEnum(['active', 'inactive']);
       expect(() => statusDecoder('deleted')).toThrow('Must be one of: active, inactive');
     });
+
+    it('should accept an allow list that is not already lower-cased', () => {
+      const statusDecoder = createEnum(['ACTIVE', 'Inactive']);
+      expect(statusDecoder('ACTIVE')).toBe('active');
+      expect(statusDecoder('inactive')).toBe('inactive');
+    });
+
+    it('should list the values as declared, not as normalized', () => {
+      const statusDecoder = createEnum(['ACTIVE', 'Inactive']);
+      expect(() => statusDecoder('deleted')).toThrow('Must be one of: ACTIVE, Inactive');
+    });
   });
 
   describe('stringArray', () => {
@@ -476,11 +505,16 @@ describe('decoders', () => {
       expect(decoder(['5'])).toBe(10);
     });
 
-    it('should keep the historical parseInt tolerance and pass floats through', () => {
+    it('should keep the historical parseInt tolerance', () => {
       const decoder = optionalInteger(10);
       expect(decoder('12px')).toBe(12);
-      expect(decoder(1.5)).toBe(1.5);
       expect(decoder(-3)).toBe(-3);
+    });
+
+    it('should truncate a numeric input, like the other integer decoders', () => {
+      const decoder = optionalInteger(10);
+      expect(decoder(1.5)).toBe(1);
+      expect(decoder(-3.9)).toBe(-3);
     });
   });
 });

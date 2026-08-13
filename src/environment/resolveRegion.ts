@@ -1,4 +1,4 @@
-import { readFirstEnv } from './readFirstEnv';
+import { readFirstEnv } from './readFirstEnv.js';
 
 /**
  * Environment variables inspected by {@link resolveRegion}, highest precedence first.

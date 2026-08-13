@@ -1,4 +1,21 @@
-export { HttpError } from './http/HttpError';
+export { HttpError, toHttpErrorInit } from './http/HttpError.js';
+export type { HttpErrorInit, HttpErrorInitWithStatus, HttpErrorOptions } from './http/HttpError.js';
+// The seam that lets a service answer with its own body shape (`{ error: code }`, a problem
+// document, an envelope) instead of awpaki's `{ message }`.
+export {
+  setErrorBodyShaper,
+  getErrorBodyShaper,
+  resetErrorBodyShaper,
+  codeErrorBodyShaper,
+  serializeErrorBody,
+} from './http/errorBody.js';
+export type { ErrorBodyShaper, ErrorBodyContext, ErrorBodyTarget } from './http/errorBody.js';
+export {
+  setInfraMetadataPolicy,
+  getInfraMetadataPolicy,
+  resetInfraMetadataPolicy,
+} from './http/infraMetadata.js';
+export type { InfraMetadataPolicy } from './http/infraMetadata.js';
 export {
   BadRequest,
   Unauthorized,
@@ -14,7 +31,7 @@ export {
   ServiceUnavailable,
   HTTP_ERROR_MAP,
   createHttpError,
-} from './http/HttpErrors';
+} from './http/HttpErrors.js';
 /**
  * HTTP status constants and guards.
  *
@@ -41,15 +58,18 @@ export {
   isValidHttpStatus,
   isValidHttpErrorStatus,
   getHttpStatusName,
-} from './http/HttpStatus';
+  getDefaultErrorCode,
+} from './http/HttpStatus.js';
 // Type-only, so it must leave through `export type`: inside the value block above it
 // would be an unresolvable name for any single-file transpiler (`isolatedModules`,
 // esbuild, swc), which cannot know the specifier is erasable.
-export type { HttpErrorStatusType } from './http/HttpStatus';
+export type { HttpErrorStatusType } from './http/HttpStatus.js';
 export {
   handleApiGatewayError,
   handleApiGatewayErrorV2,
   handleGenericError,
+  rethrowLambdaError,
+  handleInvokeError,
   handleSqsError,
   handleSnsError,
   handleEventBridgeError,
@@ -59,4 +79,4 @@ export {
   type ApiGatewayErrorResponse,
   type ApiGatewayErrorResponseV2,
   type GenericLambdaErrorResponse,
-} from './handlers/handleLambdaError';
+} from './handlers/handleLambdaError.js';

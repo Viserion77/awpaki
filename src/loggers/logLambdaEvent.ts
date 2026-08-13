@@ -23,7 +23,8 @@ import type {
   AppSyncResolverEvent,
   Context,
 } from 'aws-lambda';
-import { getLogger } from './logger';
+import { decodeS3ObjectKey } from '../extractors/decode-s3-object-key/index.js';
+import { getLogger } from './logger.js';
 
 /**
  * Configuration for Lambda event logging
@@ -31,6 +32,21 @@ import { getLogger } from './logger';
 export interface LogConfig {
   /** Additional custom data to log */
   additionalData?: Record<string, any>;
+}
+
+/**
+ * Reduces the raw `Cookie` header values of a payload-format-2.0 event to their names.
+ *
+ * Knowing *which* cookies arrived answers the questions an entry log is for — was the session
+ * cookie present, did the consent flag survive the redirect — while the values are the session
+ * itself. Redaction by key name cannot help here: the array holds `name=value` strings, so by
+ * the time it reaches the serializer it is opaque text.
+ *
+ * @param cookies - `cookies` field of the event
+ * @returns The cookie names, or undefined when the event carried none
+ */
+function toCookieNames(cookies: string[] | undefined): string[] | undefined {
+  return cookies?.map((cookie) => cookie.split('=')[0]?.trim() ?? '');
 }
 
 /**
@@ -75,7 +91,6 @@ export function logApiGatewayEvent(
 
   getLogger().info(logData, `Entry API Gateway ${identifier}`);
 
-  // Log headers in debug level
   getLogger().debug(event.headers, `API Gateway Headers ${identifier}`);
 }
 
@@ -119,13 +134,14 @@ export function logApiGatewayEventV2(
     requestTimeEpoch: event.requestContext.timeEpoch,
     queryStringParameters: event.queryStringParameters,
     pathParameters: event.pathParameters,
-    cookies: event.cookies,
+    // Names only. The values are session material on every single request, and a truncated
+    // or structured copy of them is unredactable once it is a plain string in CloudWatch.
+    cookieNames: toCookieNames(event.cookies),
     ...(config?.additionalData || {}),
   };
 
   getLogger().info(logData, `Entry API Gateway V2 ${identifier}`);
 
-  // Log headers in debug level
   getLogger().debug(event.headers, `API Gateway V2 Headers ${identifier}`);
 }
 
@@ -148,7 +164,6 @@ export function logApiGatewayEventV2(
 export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
 
-  // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -160,7 +175,6 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
 
   getLogger().info(eventSummary, `Entry SQS Event ${identifier}`);
 
-  // Log individual de cada mensagem
   for (let index = 0; index < event.Records.length; index++) {
     const record = event.Records[index];
     const recordIdentifier = `${identifier}:${record.messageId}`;
@@ -168,9 +182,11 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
       recordIndex: index + 1,
       totalRecords: event.Records.length,
       messageId: record.messageId,
-      body: `${record.body.substring(0, 100)}...`,
+      // No body preview at INFO: the first 100 characters of a JSON message are exactly
+      // where a token or a document number sits, and a truncated string cannot be redacted
+      // by key name. The full body is one level down, at DEBUG.
+      bodyBytes: record.body.length,
       attributes: record.attributes,
-      messageAttributes: record.messageAttributes,
       md5OfBody: record.md5OfBody,
       eventSourceARN: record.eventSourceARN,
       awsRegion: record.awsRegion,
@@ -178,12 +194,13 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
 
     getLogger().info(recordData, `SQS Record ${recordIdentifier}`);
 
-    // Log full body in debug
     getLogger().debug(
       {
         messageId: record.messageId,
         body: record.body,
-        receiptHandle: record.receiptHandle,
+        // `receiptHandle` is deliberately absent: it is a capability — anyone holding it can
+        // delete the message or change its visibility — and it identifies nothing that
+        // `messageId` does not.
       },
       `SQS Record Full Body ${recordIdentifier}`
     );
@@ -209,7 +226,6 @@ export function logSqsEvent(event: SQSEvent, context: Context, config?: LogConfi
 export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
 
-  // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -221,7 +237,6 @@ export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfi
 
   getLogger().info(eventSummary, `Entry SNS Event ${identifier}`);
 
-  // Log individual de cada mensagem
   for (let index = 0; index < event.Records.length; index++) {
     const record = event.Records[index];
     const recordIdentifier = `${identifier}:${record.Sns.MessageId}`;
@@ -230,16 +245,15 @@ export function logSnsEvent(event: SNSEvent, context: Context, config?: LogConfi
       totalRecords: event.Records.length,
       messageId: record.Sns.MessageId,
       subject: record.Sns.Subject,
-      message: `${record.Sns.Message.substring(0, 100)}...`,
+      // Same reasoning as the SQS preview: the payload belongs at DEBUG, whole.
+      messageBytes: record.Sns.Message.length,
       timestamp: record.Sns.Timestamp,
       topicArn: record.Sns.TopicArn,
       type: record.Sns.Type,
-      messageAttributes: record.Sns.MessageAttributes,
     };
 
     getLogger().info(recordData, `SNS Record ${recordIdentifier}`);
 
-    // Log full message in debug
     getLogger().debug(
       {
         messageId: record.Sns.MessageId,
@@ -292,7 +306,6 @@ export function logEventBridgeEvent(
 
   getLogger().info(logData, `Entry EventBridge ${identifier}`);
 
-  // Log full detail in debug
   getLogger().debug(event.detail, `EventBridge Detail ${identifier}`);
 }
 
@@ -315,7 +328,6 @@ export function logEventBridgeEvent(
 export function logS3Event(event: S3Event, context: Context, config?: LogConfig): void {
   const identifier = `${context.functionName}:${context.awsRequestId}`;
 
-  // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -327,7 +339,6 @@ export function logS3Event(event: S3Event, context: Context, config?: LogConfig)
 
   getLogger().info(eventSummary, `Entry S3 Event ${identifier}`);
 
-  // Log individual de cada objeto
   for (let index = 0; index < event.Records.length; index++) {
     const record = event.Records[index];
     const s3RequestId = record.responseElements?.['x-amz-request-id'] || 'unknown';
@@ -340,7 +351,7 @@ export function logS3Event(event: S3Event, context: Context, config?: LogConfig)
       awsRegion: record.awsRegion,
       bucketName: record.s3.bucket.name,
       bucketArn: record.s3.bucket.arn,
-      objectKey: decodeURIComponent(record.s3.object.key.replace(/\+/g, ' ')),
+      objectKey: decodeS3ObjectKey(record.s3.object.key),
       objectSize: record.s3.object.size,
       objectETag: record.s3.object.eTag,
       objectVersionId: record.s3.object.versionId,
@@ -376,7 +387,6 @@ export function logDynamoDBStreamEvent(
   const identifier = `${context.functionName}:${context.awsRequestId}`;
   const tableName = event.Records[0]?.eventSourceARN?.split('/')[1];
 
-  // Log geral do evento
   const eventSummary = {
     requestId: context.awsRequestId,
     functionName: context.functionName,
@@ -389,7 +399,6 @@ export function logDynamoDBStreamEvent(
 
   getLogger().info(eventSummary, `Entry DynamoDB Stream Event ${identifier}`);
 
-  // Log individual de cada registro
   for (let index = 0; index < event.Records.length; index++) {
     const record = event.Records[index];
     const recordIdentifier = `${identifier}:${record.eventID}`;
@@ -416,7 +425,6 @@ export function logDynamoDBStreamEvent(
 
     getLogger().info(recordData, `DynamoDB Stream Record ${recordIdentifier}`);
 
-    // Log full data in debug
     getLogger().debug(
       {
         eventID: record.eventID,
@@ -457,8 +465,18 @@ export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Reco
 
   // Extract identity info safely across different identity types
   const identity = event.identity as any;
+  // A Lambda authorizer's `resolverContext` is a whole object — decoded JWT claims, permission
+  // sets, tenant ids — and it used to be logged verbatim under `identity` on every resolver
+  // call. Its key list identifies the caller shape without publishing the claims, matching
+  // what `argumentKeys` does on the next lines. `??` rather than `||`: an identity whose `sub`
+  // is the empty string is still a Cognito identity, and must not fall through to `username`.
   const identityValue =
-    identity?.sub || identity?.username || identity?.resolverContext || 'anonymous';
+    identity?.sub ??
+    identity?.username ??
+    (identity?.resolverContext
+      ? `resolverContext(${Object.keys(identity.resolverContext).join(', ')})`
+      : undefined) ??
+    'anonymous';
   const identityType = !identity
     ? 'none'
     : identity.sub
@@ -486,7 +504,6 @@ export function logAppSyncEvent<TArguments = Record<string, any>, TSource = Reco
 
   getLogger().info(logData, `Entry AppSync ${identifier}`);
 
-  // Log full arguments and source in debug
   getLogger().debug(
     {
       arguments: event.arguments,

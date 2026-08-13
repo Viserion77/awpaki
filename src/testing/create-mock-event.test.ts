@@ -11,7 +11,7 @@ import {
   MOCK_SOURCE_IP,
   MOCK_STAGE,
   MOCK_USER_AGENT,
-} from './create-mock-event';
+} from './create-mock-event.js';
 
 /** 08/Aug/2026:12:30:45 +0000 — pinned so timestamps can be asserted. */
 const FIXED_EPOCH = Date.UTC(2026, 7, 8, 12, 30, 45);

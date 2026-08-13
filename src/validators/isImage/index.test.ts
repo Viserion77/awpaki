@@ -1,4 +1,4 @@
-import { isImage, IMAGE_MIME_TYPES } from './index';
+import { isImage, isRasterImage, IMAGE_MIME_TYPES, RASTER_IMAGE_MIME_TYPES } from './index.js';
 
 describe('isImage', () => {
   it('should accept common image MIME types', () => {
@@ -54,5 +54,33 @@ describe('isImage', () => {
     expect(isImage({ contentType: 'image/png' })).toBe(false);
     expect(isImage(['image/png'])).toBe(false);
     expect(isImage(true)).toBe(false);
+  });
+
+  // docs/validation.md names SVG as the reason the allow list exists instead of an
+  // `image/*` prefix test — while `isImage` accepts it, because it genuinely is an image
+  // type. Two names, so a gate can say which of the two jobs it is doing.
+  describe('isRasterImage', () => {
+    it('accepts raster types', () => {
+      expect(isRasterImage('image/png')).toBe(true);
+      expect(isRasterImage('IMAGE/JPEG')).toBe(true);
+      expect(isRasterImage('image/webp; charset=binary')).toBe(true);
+    });
+
+    it('rejects SVG, which a browser executes', () => {
+      expect(isRasterImage('image/svg+xml')).toBe(false);
+      expect(isImage('image/svg+xml')).toBe(true);
+    });
+
+    it('rejects everything isImage rejects', () => {
+      expect(isRasterImage('application/pdf')).toBe(false);
+      expect(isRasterImage('image/notreal')).toBe(false);
+      expect(isRasterImage(undefined)).toBe(false);
+    });
+
+    it('keeps the two lists from drifting apart', () => {
+      expect(RASTER_IMAGE_MIME_TYPES).toEqual(
+        IMAGE_MIME_TYPES.filter((mimeType) => mimeType !== 'image/svg+xml')
+      );
+    });
   });
 });

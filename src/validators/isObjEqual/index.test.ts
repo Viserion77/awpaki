@@ -1,4 +1,4 @@
-import { isObjEqual } from './index';
+import { isObjEqual } from './index.js';
 
 describe('isObjEqual', () => {
   it('should compare primitives with Object.is semantics', () => {

@@ -22,6 +22,7 @@ export {
   isValidHttpStatus,
   isValidHttpErrorStatus,
   getHttpStatusName,
-} from '../errors/http/HttpStatus';
+  getDefaultErrorCode,
+} from '../errors/http/HttpStatus.js';
 
-export type { HttpErrorStatusType } from '../errors/http/HttpStatus';
+export type { HttpErrorStatusType } from '../errors/http/HttpStatus.js';

@@ -1,4 +1,4 @@
-import * as handlers from './index';
+import * as handlers from './index.js';
 
 describe('handlers barrel', () => {
   it('exposes the three factories', () => {

@@ -1,4 +1,4 @@
-import { snsClient } from './index';
+import { snsClient } from './index.js';
 import { PublishCommand } from '@aws-sdk/client-sns';
 
 describe('snsClient', () => {

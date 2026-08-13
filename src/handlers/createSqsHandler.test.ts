@@ -1,10 +1,10 @@
 import type { Context, SQSEvent, SQSRecord } from 'aws-lambda';
-import { createSqsHandler } from './createSqsHandler';
-import type { CreateSqsHandlerOptions, SqsHandlerInput } from './createSqsHandler';
-import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector';
-import { NotFound } from '../errors';
-import { ParameterType } from '../extractors';
-import { resetLogger, setLogger } from '../loggers';
+import { createSqsHandler } from './createSqsHandler.js';
+import type { CreateSqsHandlerOptions, SqsHandlerInput } from './createSqsHandler.js';
+import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector.js';
+import { NotFound } from '../errors/index.js';
+import { ParameterType } from '../extractors/index.js';
+import { resetLogger, setLogger } from '../loggers/index.js';
 
 type LogCall = [any, string | undefined];
 
@@ -303,5 +303,168 @@ describe('createSqsHandler', () => {
     await handler(createMockEvent([createMockRecord('msg-1', '{}')]), createMockContext());
 
     expect(order).toEqual(['collector:before', 'execute', 'collector:after']);
+  });
+
+  describe('FIFO ordering', () => {
+    /**
+     * Record on a FIFO queue, whose ARN and message group are what the ordering block reads.
+     */
+    const createFifoRecord = (messageId: string, body: string, groupId = 'group-a'): SQSRecord =>
+      ({
+        ...createMockRecord(messageId, body),
+        attributes: { ApproximateReceiveCount: '1', MessageGroupId: groupId },
+        eventSourceARN: 'arn:aws:sqs:us-east-1:123456789012:orders.fifo',
+      }) as unknown as SQSRecord;
+
+    // Processing the records after a failure lets their side effects commit before the failed
+    // one is redelivered: the group is reordered permanently, and nothing in the response says
+    // so. AWS's rule is to return the failure plus every unprocessed record of the group.
+    it('stops the group at the first failure and reports the rest as failed', async () => {
+      const processed: string[] = [];
+      const handler = createSqsHandler<{ orderId: string }>({
+        schema: orderSchema,
+        execute: ({ params, record }) => {
+          if (record.messageId === 'msg-3') throw new Error('boom');
+          processed.push(params.orderId);
+        },
+      });
+
+      const result = await handler(
+        createMockEvent([
+          createFifoRecord('msg-1', JSON.stringify({ orderId: 'a' })),
+          createFifoRecord('msg-2', JSON.stringify({ orderId: 'b' })),
+          createFifoRecord('msg-3', JSON.stringify({ orderId: 'c' })),
+          createFifoRecord('msg-4', JSON.stringify({ orderId: 'd' })),
+          createFifoRecord('msg-5', JSON.stringify({ orderId: 'e' })),
+        ]),
+        createMockContext()
+      );
+
+      expect(processed).toEqual(['a', 'b']);
+      expect(result.batchItemFailures).toEqual([
+        { itemIdentifier: 'msg-3' },
+        { itemIdentifier: 'msg-4' },
+        { itemIdentifier: 'msg-5' },
+      ]);
+    });
+
+    // Per group, not per batch: one stuck tenant must not stall every other tenant sharing
+    // the queue.
+    it('blocks only the group that failed', async () => {
+      const processed: string[] = [];
+      const handler = createSqsHandler<{ orderId: string }>({
+        schema: orderSchema,
+        execute: ({ params, record }) => {
+          if (record.messageId === 'a-2') throw new Error('boom');
+          processed.push(params.orderId);
+        },
+      });
+
+      const result = await handler(
+        createMockEvent([
+          createFifoRecord('a-1', JSON.stringify({ orderId: 'a1' }), 'tenant-a'),
+          createFifoRecord('b-1', JSON.stringify({ orderId: 'b1' }), 'tenant-b'),
+          createFifoRecord('a-2', JSON.stringify({ orderId: 'a2' }), 'tenant-a'),
+          createFifoRecord('b-2', JSON.stringify({ orderId: 'b2' }), 'tenant-b'),
+          createFifoRecord('a-3', JSON.stringify({ orderId: 'a3' }), 'tenant-a'),
+        ]),
+        createMockContext()
+      );
+
+      expect(processed).toEqual(['a1', 'b1', 'b2']);
+      expect(result.batchItemFailures).toEqual([
+        { itemIdentifier: 'a-2' },
+        { itemIdentifier: 'a-3' },
+      ]);
+    });
+
+    it('keeps processing after a failure on a standard queue', async () => {
+      const processed: string[] = [];
+      const handler = createSqsHandler<{ orderId: string }>({
+        schema: orderSchema,
+        execute: ({ params, record }) => {
+          if (record.messageId === 'msg-2') throw new Error('boom');
+          processed.push(params.orderId);
+        },
+      });
+
+      const result = await handler(
+        createMockEvent([
+          createMockRecord('msg-1', JSON.stringify({ orderId: 'a' })),
+          createMockRecord('msg-2', JSON.stringify({ orderId: 'b' })),
+          createMockRecord('msg-3', JSON.stringify({ orderId: 'c' })),
+        ]),
+        createMockContext()
+      );
+
+      expect(processed).toEqual(['a', 'c']);
+      expect(result.batchItemFailures).toEqual([{ itemIdentifier: 'msg-2' }]);
+    });
+
+    it('can be forced on for a standard queue', async () => {
+      const processed: string[] = [];
+      const handler = createSqsHandler<{ orderId: string }>({
+        schema: orderSchema,
+        ordered: true,
+        execute: ({ params, record }) => {
+          if (record.messageId === 'msg-1') throw new Error('boom');
+          processed.push(params.orderId);
+        },
+      });
+
+      const result = await handler(
+        createMockEvent([
+          createMockRecord('msg-1', JSON.stringify({ orderId: 'a' })),
+          createMockRecord('msg-2', JSON.stringify({ orderId: 'b' })),
+        ]),
+        createMockContext()
+      );
+
+      expect(processed).toEqual([]);
+      expect(result.batchItemFailures).toEqual([
+        { itemIdentifier: 'msg-1' },
+        { itemIdentifier: 'msg-2' },
+      ]);
+    });
+
+    it('can be forced off for a FIFO queue whose consumers do not care about order', async () => {
+      const processed: string[] = [];
+      const handler = createSqsHandler<{ orderId: string }>({
+        schema: orderSchema,
+        ordered: false,
+        execute: ({ params, record }) => {
+          if (record.messageId === 'msg-1') throw new Error('boom');
+          processed.push(params.orderId);
+        },
+      });
+
+      const result = await handler(
+        createMockEvent([
+          createFifoRecord('msg-1', JSON.stringify({ orderId: 'a' })),
+          createFifoRecord('msg-2', JSON.stringify({ orderId: 'b' })),
+        ]),
+        createMockContext()
+      );
+
+      expect(processed).toEqual(['b']);
+      expect(result.batchItemFailures).toEqual([{ itemIdentifier: 'msg-1' }]);
+    });
+
+    it('does not run execute for a skipped record', async () => {
+      const execute = jest.fn(({ record }: SqsHandlerInput<{ orderId: string }>) => {
+        if (record.messageId === 'msg-1') throw new Error('boom');
+      });
+      const handler = createSqsHandler<{ orderId: string }>({ schema: orderSchema, execute });
+
+      await handler(
+        createMockEvent([
+          createFifoRecord('msg-1', JSON.stringify({ orderId: 'a' })),
+          createFifoRecord('msg-2', JSON.stringify({ orderId: 'b' })),
+        ]),
+        createMockContext()
+      );
+
+      expect(execute).toHaveBeenCalledTimes(1);
+    });
   });
 });

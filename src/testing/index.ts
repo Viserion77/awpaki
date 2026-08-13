@@ -22,14 +22,14 @@ export {
   MOCK_SOURCE_IP,
   MOCK_STAGE,
   MOCK_USER_AGENT,
-} from './create-mock-event';
+} from './create-mock-event.js';
 
 export type {
   MockEventDescription,
   MockFetch,
   MockMultiValue,
   MockValue,
-} from './create-mock-event';
+} from './create-mock-event.js';
 
 export {
   createMockContext,
@@ -38,6 +38,6 @@ export {
   MOCK_CONTEXT_REGION,
   MOCK_FUNCTION_NAME,
   MOCK_REMAINING_TIME_IN_MILLIS,
-} from './create-mock-context';
+} from './create-mock-context.js';
 
-export type { MockContextOverrides } from './create-mock-context';
+export type { MockContextOverrides } from './create-mock-context.js';

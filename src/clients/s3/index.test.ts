@@ -1,4 +1,4 @@
-import { s3Client } from './index';
+import { s3Client } from './index.js';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 describe('s3Client', () => {
@@ -67,7 +67,11 @@ function loadWithStubbedSdk(): CapturedConfig {
     },
   }));
 
-  require('./index');
+  const mod = require('./index.js') as typeof import('./index.js');
+
+  // The client is built on first use now, so the probe has to make a call. The stub has no
+  // `send`, and the failure is irrelevant: the constructor has already run by then.
+  void mod.s3Client.execute({}).catch(() => undefined);
 
   return captured;
 }

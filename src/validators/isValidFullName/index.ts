@@ -1,4 +1,4 @@
-import { isValidName } from '../isValidName';
+import { isValidName } from '../isValidName/index.js';
 
 /**
  * Checks whether a value is a full name: at least two words, each one valid

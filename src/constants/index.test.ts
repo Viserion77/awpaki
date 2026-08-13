@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 
-import * as constants from './index';
-import { defaultRetryOptions } from './default-retry-options';
-import * as httpStatusSource from '../errors/http/HttpStatus';
+import * as constants from './index.js';
+import { defaultRetryOptions } from './default-retry-options.js';
+import * as httpStatusSource from '../errors/http/HttpStatus.js';
 
 describe('constants barrel', () => {
   it('exports the shared retry defaults', () => {

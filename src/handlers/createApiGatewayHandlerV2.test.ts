@@ -1,13 +1,13 @@
 import type { APIGatewayProxyEventV2, Context } from 'aws-lambda';
-import { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2';
+import { createApiGatewayHandlerV2 } from './createApiGatewayHandlerV2.js';
 import type {
   ApiGatewayHandlerV2Input,
   CreateApiGatewayHandlerV2Options,
-} from './createApiGatewayHandlerV2';
-import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector';
-import { Conflict, Forbidden, HttpStatus, NotFound, Unauthorized } from '../errors';
-import { ParameterType } from '../extractors';
-import { resetLogger, setLogger } from '../loggers';
+} from './createApiGatewayHandlerV2.js';
+import { resetHandlerLogCollector, setHandlerLogCollector } from './logCollector.js';
+import { Conflict, Forbidden, HttpStatus, NotFound, Unauthorized } from '../errors/index.js';
+import { ParameterType } from '../extractors/index.js';
+import { resetLogger, setLogger } from '../loggers/index.js';
 
 type LogCall = [any, string | undefined];
 
@@ -523,10 +523,32 @@ describe('createApiGatewayHandlerV2', () => {
       );
     });
 
-    it('runs after the schema, so an invalid request is reported as 422', async () => {
+    // The error map is keyed by schema path, so answering 422 to a caller with no key hands
+    // them a description of every input the route takes, one request at a time — and runs
+    // each decoder on their values first.
+    it('runs before the schema, so an unauthenticated caller learns nothing about it', async () => {
+      const execute = jest.fn();
       const handler = createApiGatewayHandlerV2({
         schema: nameSchema,
         checkApiKey: 'secret-key',
+        execute,
+      });
+
+      const response = await handler(
+        createMockEvent({ headers: {}, body: JSON.stringify({}) }),
+        createMockContext()
+      );
+
+      expect(response.statusCode).toBe(HttpStatus.UNAUTHORIZED);
+      expect(JSON.parse(response.body!)).toEqual({ message: 'Invalid API key' });
+      expect(execute).not.toHaveBeenCalled();
+    });
+
+    it('can be put back after the schema, reporting both failures', async () => {
+      const handler = createApiGatewayHandlerV2({
+        schema: nameSchema,
+        checkApiKey: 'secret-key',
+        checkApiKeyBeforeSchema: false,
         execute: jest.fn(),
       });
 
@@ -580,6 +602,40 @@ describe('createApiGatewayHandlerV2', () => {
       await handler(createMockEvent(), createMockContext());
 
       expect(used).toEqual(['per-handler']);
+    });
+  });
+
+  describe('error contract options', () => {
+    it('shapes the error body for this handler only', async () => {
+      const handler = createApiGatewayHandlerV2({
+        errorBodyShaper: (error) => ({ error: error.code }),
+        execute: () => {
+          throw new NotFound('User abc not found');
+        },
+      });
+
+      const response = await handler(createMockEvent(), createMockContext());
+
+      expect(response.statusCode).toBe(HttpStatus.NOT_FOUND);
+      expect(JSON.parse(response.body!)).toEqual({ error: 'not_found' });
+    });
+
+    it('applies the validation status and code to schema failures', async () => {
+      const handler = createApiGatewayHandlerV2({
+        schema: nameSchema,
+        validationStatusCode: HttpStatus.BAD_REQUEST,
+        validationErrorCode: 'invalid_request',
+        errorBodyShaper: (error) => ({ error: error.code }),
+        execute: jest.fn(),
+      });
+
+      const response = await handler(
+        createMockEvent({ body: JSON.stringify({}) }),
+        createMockContext()
+      );
+
+      expect(response.statusCode).toBe(HttpStatus.BAD_REQUEST);
+      expect(JSON.parse(response.body!)).toEqual({ error: 'invalid_request' });
     });
   });
 });

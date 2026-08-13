@@ -1,14 +1,18 @@
 import { SESClient } from '@aws-sdk/client-ses';
-import retry from 'async-retry';
-import { defaultRetryOptions } from '../../constants/default-retry-options';
-import { resolveEndpoint, resolveRegion } from '../../environment';
-import type { RetryOptions } from '../index.types';
+import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
+import { createLazyClient } from '../lazyClient.js';
+import { withRetry } from '../retry/withRetry.js';
+import type { RetryOptions } from '../index.types.js';
 
-// Initialize SES client from environment variables
-const client = new SESClient({
-  region: resolveRegion(),
-  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SES'),
-});
+// Built on first use, not at import: the region and endpoint are then read from the
+// environment the caller actually has, and a test can swap them with `resetAwsClients()`.
+const lazyClient = createLazyClient(
+  () =>
+    new SESClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_SES'),
+    })
+);
 
 /**
  * SES client with automatic retry logic.
@@ -45,18 +49,10 @@ export const sesClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    const options = { ...defaultRetryOptions, ...retryOptions };
-
-    return retry(
-      async () => {
-        const result = await client.send(command);
-        return result as T;
-      },
-      {
-        retries: options.retries,
-        minTimeout: options.minTimeout,
-        maxTimeout: options.maxTimeout,
-      }
+    return withRetry(
+      { service: 'ses', command: command?.constructor?.name },
+      () => lazyClient.get().send(command) as Promise<T>,
+      retryOptions
     );
   },
 };

@@ -1,4 +1,5 @@
-import { HttpError } from './HttpError';
+import { HttpError } from './HttpError.js';
+import { resetInfraMetadataPolicy, setInfraMetadataPolicy } from './infraMetadata.js';
 import {
   BadRequest,
   Unauthorized,
@@ -12,8 +13,8 @@ import {
   NotImplemented,
   BadGateway,
   ServiceUnavailable,
-} from './HttpErrors';
-import { HttpStatus } from './HttpStatus';
+} from './HttpErrors.js';
+import { HttpStatus } from './HttpStatus.js';
 
 describe('HttpError', () => {
   describe('HttpError base class', () => {
@@ -75,10 +76,11 @@ describe('HttpError', () => {
       expect(response.headers).toHaveProperty('X-Extra', 'extra');
     });
 
-    it('should include Lambda metadata in API Gateway response when available', () => {
+    it('should include Lambda metadata in API Gateway response when the policy allows it', () => {
       process.env.AWS_LAMBDA_LOG_STREAM_NAME = '2024/12/08/[$LATEST]abc123';
       process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
       process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+      setInfraMetadataPolicy('always');
 
       const error = new HttpError('Error with metadata', HttpStatus.INTERNAL_SERVER_ERROR);
       const response = error.toApiGatewayResponse();
@@ -90,9 +92,79 @@ describe('HttpError', () => {
       expect(body['$x-custom-metadata'].functionName).toBe('my-test-function');
 
       // Cleanup
+      resetInfraMetadataPolicy();
       delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
       delete process.env.AWS_EXECUTION_ENV;
       delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    // The gate matters most on the statuses an unauthenticated caller can reach: a 401 from
+    // the API key gate used to hand back the function name, the runtime version and a live
+    // log stream identifier before any credential had been presented.
+    it('should keep infrastructure metadata out of the body by default', () => {
+      process.env.AWS_LAMBDA_LOG_STREAM_NAME = '2024/12/08/[$LATEST]abc123';
+      process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+
+      const unauthorized = new HttpError('No key', HttpStatus.UNAUTHORIZED);
+      const crash = new HttpError('Boom', HttpStatus.INTERNAL_SERVER_ERROR);
+
+      expect(JSON.parse(unauthorized.toApiGatewayResponse().body)).toEqual({ message: 'No key' });
+      expect(JSON.parse(crash.toApiGatewayResponse().body)).toEqual({ message: 'Boom' });
+
+      delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
+      delete process.env.AWS_EXECUTION_ENV;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    it('should limit metadata to 5xx under the server-errors policy', () => {
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+      setInfraMetadataPolicy('server-errors');
+
+      const unauthorized = new HttpError('No key', HttpStatus.UNAUTHORIZED);
+      const crash = new HttpError('Boom', HttpStatus.INTERNAL_SERVER_ERROR);
+
+      expect(
+        JSON.parse(unauthorized.toApiGatewayResponse().body)['$x-custom-metadata']
+      ).toBeUndefined();
+      expect(JSON.parse(crash.toApiGatewayResponse().body)['$x-custom-metadata']).toEqual({
+        functionName: 'my-test-function',
+      });
+
+      resetInfraMetadataPolicy();
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    it('should read the policy from the environment when none was set in code', () => {
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+      process.env.AWPAKI_ERROR_INFRA_METADATA = 'always';
+
+      const error = new HttpError('Boom', HttpStatus.BAD_REQUEST);
+
+      expect(JSON.parse(error.toApiGatewayResponse().body)['$x-custom-metadata']).toEqual({
+        functionName: 'my-test-function',
+      });
+
+      delete process.env.AWPAKI_ERROR_INFRA_METADATA;
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    // Resolution has to happen when the body is built, not when the error is constructed:
+    // modules are imported before a consumer's bootstrap runs, and the errors they throw
+    // must still honour the policy that bootstrap set.
+    it('should resolve the policy at serialization time, not at construction', () => {
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+      const error = new HttpError('Boom', HttpStatus.INTERNAL_SERVER_ERROR);
+
+      setInfraMetadataPolicy('always');
+      expect(JSON.parse(error.toApiGatewayResponse().body)['$x-custom-metadata']).toBeDefined();
+
+      resetInfraMetadataPolicy();
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+    });
+
+    it('should reject an unknown policy instead of silently ignoring it', () => {
+      expect(() => setInfraMetadataPolicy('yes' as never)).toThrow(TypeError);
     });
 
     it('should not include empty Lambda metadata', () => {
@@ -151,10 +223,11 @@ describe('HttpError', () => {
       expect(response.headers).toHaveProperty('X-Extra', 'extra');
     });
 
-    it('should include Lambda metadata in API Gateway V2 response when available', () => {
+    it('should include Lambda metadata in API Gateway V2 response when the policy allows it', () => {
       process.env.AWS_LAMBDA_LOG_STREAM_NAME = '2024/12/08/[$LATEST]abc123';
       process.env.AWS_EXECUTION_ENV = 'AWS_Lambda_nodejs20.x';
       process.env.AWS_LAMBDA_FUNCTION_NAME = 'my-test-function';
+      setInfraMetadataPolicy('always');
 
       const error = new HttpError('Error with metadata', HttpStatus.INTERNAL_SERVER_ERROR);
       const response = error.toApiGatewayResponseV2();
@@ -166,6 +239,7 @@ describe('HttpError', () => {
       expect(body['$x-custom-metadata'].functionName).toBe('my-test-function');
 
       // Cleanup
+      resetInfraMetadataPolicy();
       delete process.env.AWS_LAMBDA_LOG_STREAM_NAME;
       delete process.env.AWS_EXECUTION_ENV;
       delete process.env.AWS_LAMBDA_FUNCTION_NAME;

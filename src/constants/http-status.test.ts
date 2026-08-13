@@ -1,4 +1,4 @@
-import * as source from '../errors/http/HttpStatus';
+import * as source from '../errors/http/HttpStatus.js';
 import {
   HttpStatus,
   HttpErrorStatus,
@@ -6,7 +6,7 @@ import {
   isValidHttpErrorStatus,
   getHttpStatusName,
   type HttpErrorStatusType,
-} from './http-status';
+} from './http-status.js';
 
 describe('constants/http-status re-export', () => {
   it('exposes the same symbols as the source module', () => {
@@ -19,7 +19,7 @@ describe('constants/http-status re-export', () => {
 
   it('does not add or drop runtime exports compared to the source module', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const reExported = require('./http-status');
+    const reExported = require('./http-status.js');
 
     expect(Object.keys(reExported).sort()).toEqual(Object.keys(source).sort());
   });

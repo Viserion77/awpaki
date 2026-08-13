@@ -1,4 +1,4 @@
-import { lambdaClient } from './index';
+import { lambdaClient } from './index.js';
 import { InvokeCommand } from '@aws-sdk/client-lambda';
 
 describe('lambdaClient', () => {
@@ -41,7 +41,7 @@ interface FakeLambdaClient {
 }
 
 interface MockedModule {
-  lambdaClient: typeof import('./index').lambdaClient;
+  lambdaClient: typeof import('./index.js').lambdaClient;
   /** Every LambdaClient built since the module was loaded — index 0 is the module client */
   clients: FakeLambdaClient[];
   /** Every InvokeCommand built by the module */
@@ -96,10 +96,10 @@ function loadWithMockedSdk(): MockedModule {
   // The module under test resolves its logger from the freshly reset registry, so the sink
   // has to be installed on that same copy.
   const logs: string[] = [];
-  const logger = require('../../loggers/logger') as typeof import('../../loggers/logger');
+  const logger = require('../../loggers/logger.js') as typeof import('../../loggers/logger.js');
   logger.setLogSink((line) => logs.push(line));
 
-  const mod = require('./index') as typeof import('./index');
+  const mod = require('./index.js') as typeof import('./index.js');
 
   return { lambdaClient: mod.lambdaClient, clients, commands, send: sendMock, logs };
 }
@@ -531,12 +531,17 @@ describe('lambdaClient.invokeLambda', () => {
       await expect(mod.lambdaClient.invokeLambda({ functionName: 'fn' })).rejects.toMatchObject({
         name: 'BadGateway',
         statusCode: 502,
+        code: 'downstream_lambda_failed',
         message: expect.stringContaining('cannot read property id of undefined'),
+        // `data` is what a client can be shown; the downstream trace and payload are not.
         data: {
           functionName: 'fn',
           functionError: 'Unhandled',
           errorType: 'TypeError',
+        },
+        diagnostics: {
           trace: ['at handler'],
+          errorMessage: 'cannot read property id of undefined',
         },
       });
 
@@ -599,7 +604,7 @@ describe('lambdaClient.invokeLambda', () => {
     it('retries a transport failure and surfaces it when it never succeeds', async () => {
       const mod = loadWithMockedSdk();
       mod.send
-        .mockRejectedValueOnce(new Error('ECONNRESET'))
+        .mockRejectedValueOnce(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }))
         .mockResolvedValueOnce({ StatusCode: 200, Payload: jsonPayload({ ok: true }) });
 
       const result = await mod.lambdaClient.invokeLambda({
@@ -634,19 +639,31 @@ describe('lambdaClient.invokeLambda', () => {
 
       await mod.lambdaClient.invokeLambda({ functionName: 'partner-fn', credentials });
 
-      expect(mod.clients).toHaveLength(2);
+      // Only the ephemeral one exists: the shared client is built on first use, and this call
+      // never used it.
+      expect(mod.clients).toHaveLength(1);
       expect(mod.clients[0].config).toEqual({
-        region: 'us-east-1',
-        endpoint: 'http://lambda.local',
-      });
-      expect(mod.clients[1].config).toEqual({
         region: 'us-east-1',
         endpoint: 'http://lambda.local',
         credentials,
       });
       // Ephemeral really means ephemeral
-      expect(mod.clients[1].destroyed).toBe(true);
-      expect(mod.clients[0].destroyed).toBe(false);
+      expect(mod.clients[0].destroyed).toBe(true);
+    });
+
+    it('resolves the ephemeral endpoint from the same environment as the shared client', async () => {
+      const mod = loadWithMockedSdk();
+      mod.send.mockResolvedValue({ StatusCode: 200, Payload: jsonPayload({ ok: true }) });
+
+      await mod.lambdaClient.invokeLambda({ functionName: 'fn' });
+      await mod.lambdaClient.invokeLambda({
+        functionName: 'partner-fn',
+        credentials: { accessKeyId: 'a', secretAccessKey: 'b' },
+      });
+
+      expect(mod.clients).toHaveLength(2);
+      expect(mod.clients[0].config.endpoint).toBe(mod.clients[1].config.endpoint);
+      expect(mod.clients[0].config.region).toBe(mod.clients[1].config.region);
     });
 
     it('honours a region override on the ephemeral client', async () => {
@@ -655,9 +672,9 @@ describe('lambdaClient.invokeLambda', () => {
 
       await mod.lambdaClient.invokeLambda({ functionName: 'fn', region: 'sa-east-1' });
 
-      expect(mod.clients).toHaveLength(2);
-      expect(mod.clients[1].config.region).toBe('sa-east-1');
-      expect(mod.clients[1].config.credentials).toBeUndefined();
+      expect(mod.clients).toHaveLength(1);
+      expect(mod.clients[0].config.region).toBe('sa-east-1');
+      expect(mod.clients[0].config.credentials).toBeUndefined();
     });
 
     it('destroys the ephemeral client even when the invoke fails', async () => {
@@ -672,7 +689,7 @@ describe('lambdaClient.invokeLambda', () => {
         })
       ).rejects.toThrow('denied');
 
-      expect(mod.clients[1].destroyed).toBe(true);
+      expect(mod.clients[0].destroyed).toBe(true);
     });
 
     it('keeps using the shared module client when no credentials are given', async () => {

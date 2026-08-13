@@ -1,14 +1,18 @@
 import { APIGatewayClient } from '@aws-sdk/client-api-gateway';
-import retry from 'async-retry';
-import { defaultRetryOptions } from '../../constants/default-retry-options';
-import { resolveEndpoint, resolveRegion } from '../../environment';
-import type { RetryOptions } from '../index.types';
+import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
+import { createLazyClient } from '../lazyClient.js';
+import { withRetry } from '../retry/withRetry.js';
+import type { RetryOptions } from '../index.types.js';
 
-// Initialize API Gateway client from environment variables
-const client = new APIGatewayClient({
-  region: resolveRegion(),
-  endpoint: resolveEndpoint('AWS_ENDPOINT_URL_API_GATEWAY'),
-});
+// Built on first use, not at import: the region and endpoint are then read from the
+// environment the caller actually has, and a test can swap them with `resetAwsClients()`.
+const lazyClient = createLazyClient(
+  () =>
+    new APIGatewayClient({
+      region: resolveRegion(),
+      endpoint: resolveEndpoint('AWS_ENDPOINT_URL_API_GATEWAY'),
+    })
+);
 
 /**
  * API Gateway client with automatic retry logic.
@@ -36,18 +40,10 @@ export const apiGatewayClient = {
    * @returns Promise with the command result
    */
   async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    const options = { ...defaultRetryOptions, ...retryOptions };
-
-    return retry(
-      async () => {
-        const result = await client.send(command);
-        return result as T;
-      },
-      {
-        retries: options.retries,
-        minTimeout: options.minTimeout,
-        maxTimeout: options.maxTimeout,
-      }
+    return withRetry(
+      { service: 'apigateway', command: command?.constructor?.name },
+      () => lazyClient.get().send(command) as Promise<T>,
+      retryOptions
     );
   },
 };

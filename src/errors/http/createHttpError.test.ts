@@ -14,8 +14,8 @@ import {
   BadGateway,
   ServiceUnavailable,
   HttpStatus,
-} from './HttpErrors';
-import { HttpError } from './HttpError';
+} from './HttpErrors.js';
+import { HttpError } from './HttpError.js';
 
 describe('HTTP_ERROR_MAP', () => {
   it('should map all standard HTTP error codes', () => {

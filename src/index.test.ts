@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import * as awpaki from './index';
-import * as clients from './clients';
+import * as awpaki from './index.js';
+import * as clients from './clients/index.js';
 
 /**
  * Every non-test `.ts` file under `src/`, except `src/clients/**`: that directory is the
@@ -161,13 +161,47 @@ describe('package subpath map', () => {
       const entry = manifest.exports[`./${subpath}`];
 
       expect(typeof entry).toBe('object');
-      expect(entry).toEqual({
-        types: `./dist/${subpath}/index.d.ts`,
-        import: `./dist/${subpath}/index.js`,
-        require: `./dist/${subpath}/index.js`,
-      });
-      expect(manifest.typesVersions['*'][subpath]).toEqual([`dist/${subpath}/index.d.ts`]);
+
+      if (subpath === 'clients') {
+        // The aggregate barrel is CommonJS in both conditions: its lazy getters need a
+        // synchronous `require`, which ESM does not have. Documented in docs/architecture.md.
+        expect(entry).toEqual({
+          types: './dist/cjs/clients/index.d.ts',
+          import: './dist/cjs/clients/index.js',
+          require: './dist/cjs/clients/index.js',
+          default: './dist/cjs/clients/index.js',
+        });
+      } else {
+        // `types` sits INSIDE each condition: a resolver that picks `import` must be handed
+        // the ESM declarations, or it type-checks against the CommonJS ones.
+        expect(entry).toEqual({
+          import: {
+            types: `./dist/esm/${subpath}/index.d.ts`,
+            default: `./dist/esm/${subpath}/index.js`,
+          },
+          require: {
+            types: `./dist/cjs/${subpath}/index.d.ts`,
+            default: `./dist/cjs/${subpath}/index.js`,
+          },
+          // A resolver matching neither condition still gets a file rather than nothing.
+          default: `./dist/cjs/${subpath}/index.js`,
+        });
+      }
+
+      // node10 resolution ignores conditions entirely, so it reads the CommonJS build.
+      expect(manifest.typesVersions['*'][subpath]).toEqual([`dist/cjs/${subpath}/index.d.ts`]);
       expect(statSync(join(__dirname, subpath, 'index.ts')).isFile()).toBe(true);
     }
+  });
+
+  it('serves the root barrel from both builds', () => {
+    expect(manifest.exports['.']).toEqual({
+      import: { types: './dist/esm/index.d.ts', default: './dist/esm/index.js' },
+      require: { types: './dist/cjs/index.d.ts', default: './dist/cjs/index.js' },
+      default: './dist/cjs/index.js',
+    });
+    expect(manifest.main).toBe('dist/cjs/index.js');
+    expect(manifest.module).toBe('dist/esm/index.js');
+    expect(manifest.types).toBe('dist/cjs/index.d.ts');
   });
 });

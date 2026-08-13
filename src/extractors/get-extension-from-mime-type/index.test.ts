@@ -1,4 +1,4 @@
-import { FILE_EXTENSIONS, MIME_TYPE_TO_EXTENSION, getExtensionFromMimeType } from './index';
+import { FILE_EXTENSIONS, MIME_TYPE_TO_EXTENSION, getExtensionFromMimeType } from './index.js';
 
 describe('FILE_EXTENSIONS', () => {
   it('exposes every extension required by the mapping', () => {

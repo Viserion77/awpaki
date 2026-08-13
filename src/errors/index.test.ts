@@ -1,8 +1,8 @@
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
-import * as errors from './index';
-import * as constants from '../constants/http-status';
-import { HttpStatus } from './http/HttpStatus';
+import * as errors from './index.js';
+import * as constants from '../constants/http-status.js';
+import { HttpStatus } from './http/HttpStatus.js';
 
 /**
  * Recursively lists every TypeScript file under a directory.

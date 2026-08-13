@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- the lazy barrel can only be observed through require() */
-import type { RetryOptions } from './index';
+import type { RetryOptions } from './index.js';
 
 /**
  * Every name the barrel is contractually required to expose. Kept as a literal list on
@@ -23,19 +23,22 @@ const CLIENT_NAMES = [
 
 describe('clients barrel', () => {
   afterEach(() => {
-    jest.dontMock('./s3/index');
+    jest.dontMock('./s3/index.js');
     jest.dontMock('@aws-sdk/client-dynamodb');
     jest.resetModules();
   });
 
-  it('exposes every AWS client and nothing else', () => {
-    const clients = require('./index');
+  it('exposes every AWS client, plus the reset seam and nothing else', () => {
+    const clients = require('./index.js');
 
-    expect(Object.keys(clients).sort()).toEqual([...CLIENT_NAMES].sort());
+    // `resetAwsClients` is the one non-client export: it drops the cached instances so a test
+    // can point them at a local endpoint. It pulls in no AWS SDK, which is the constraint
+    // this barrel exists to respect.
+    expect(Object.keys(clients).sort()).toEqual([...CLIENT_NAMES, 'resetAwsClients'].sort());
   });
 
   it('installs each client as an enumerable, lazy getter', () => {
-    const clients = require('./index');
+    const clients = require('./index.js');
 
     for (const name of CLIENT_NAMES) {
       const descriptor = Object.getOwnPropertyDescriptor(clients, name);
@@ -47,27 +50,31 @@ describe('clients barrel', () => {
   });
 
   it('resolves every client to the export of its own module', () => {
-    const clients = require('./index');
+    const clients = require('./index.js');
 
-    expect(clients.dynamodbClient).toBe(require('./dynamodb/index').dynamodbClient);
-    expect(clients.s3Client).toBe(require('./s3/index').s3Client);
-    expect(clients.sqsClient).toBe(require('./sqs/index').sqsClient);
-    expect(clients.lambdaClient).toBe(require('./lambda/index').lambdaClient);
-    expect(clients.snsClient).toBe(require('./sns/index').snsClient);
-    expect(clients.iotClient).toBe(require('./iot/index').iotClient);
-    expect(clients.openSearchClient).toBe(require('./opensearch/index').openSearchClient);
-    expect(clients.sesClient).toBe(require('./ses/index').sesClient);
-    expect(clients.cloudWatchClient).toBe(require('./cloudwatch/index').cloudWatchClient);
-    expect(clients.apiGatewayClient).toBe(require('./apigateway/index').apiGatewayClient);
+    expect(clients.dynamodbClient).toBe(require('./dynamodb/index.js').dynamodbClient);
+    expect(clients.s3Client).toBe(require('./s3/index.js').s3Client);
+    expect(clients.sqsClient).toBe(require('./sqs/index.js').sqsClient);
+    expect(clients.lambdaClient).toBe(require('./lambda/index.js').lambdaClient);
+    expect(clients.snsClient).toBe(require('./sns/index.js').snsClient);
+    expect(clients.iotClient).toBe(require('./iot/index.js').iotClient);
+    expect(clients.openSearchClient).toBe(require('./opensearch/index.js').openSearchClient);
+    expect(clients.sesClient).toBe(require('./ses/index.js').sesClient);
+    expect(clients.cloudWatchClient).toBe(require('./cloudwatch/index.js').cloudWatchClient);
+    expect(clients.apiGatewayClient).toBe(require('./apigateway/index.js').apiGatewayClient);
     expect(clients.secretsManagerClient).toBe(
-      require('./secretsmanager/index').secretsManagerClient
+      require('./secretsmanager/index.js').secretsManagerClient
     );
-    expect(clients.timestreamQueryClient).toBe(require('./timestream/index').timestreamQueryClient);
-    expect(clients.timestreamWriteClient).toBe(require('./timestream/index').timestreamWriteClient);
+    expect(clients.timestreamQueryClient).toBe(
+      require('./timestream/index.js').timestreamQueryClient
+    );
+    expect(clients.timestreamWriteClient).toBe(
+      require('./timestream/index.js').timestreamWriteClient
+    );
   });
 
   it('gives every client an execute method', () => {
-    const clients = require('./index');
+    const clients = require('./index.js');
 
     for (const name of CLIENT_NAMES) {
       expect(typeof clients[name].execute).toBe('function');
@@ -75,7 +82,7 @@ describe('clients barrel', () => {
   });
 
   it('keeps the two Timestream clients apart', () => {
-    const clients = require('./index');
+    const clients = require('./index.js');
 
     expect(clients.timestreamQueryClient).not.toBe(clients.timestreamWriteClient);
   });
@@ -83,12 +90,12 @@ describe('clients barrel', () => {
   it('requires a client module only when the property is read', () => {
     let loads = 0;
 
-    jest.doMock('./s3/index', () => {
+    jest.doMock('./s3/index.js', () => {
       loads += 1;
       return { s3Client: { execute: jest.fn() } };
     });
 
-    const clients = require('./index');
+    const clients = require('./index.js');
     expect(loads).toBe(0);
 
     const first = clients.s3Client;
@@ -109,7 +116,7 @@ describe('clients barrel', () => {
     });
 
     // The whole point of the lazy barrel: requiring it must not touch any SDK
-    const clients = require('./index');
+    const clients = require('./index.js');
 
     expect(Object.keys(clients)).toEqual(expect.arrayContaining(CLIENT_NAMES));
     expect(typeof clients.s3Client.execute).toBe('function');
@@ -129,11 +136,11 @@ describe('clients barrel', () => {
   it('lets an unexpected error from a client module propagate untouched', () => {
     // Only a missing optional peer degrades to the stand-in; a genuine bug inside a client
     // must not be silently converted into a "not installed" message.
-    jest.doMock('./sqs/index', () => {
+    jest.doMock('./sqs/index.js', () => {
       throw new TypeError('boom');
     });
 
-    const clients = require('./index');
+    const clients = require('./index.js');
 
     expect(() => clients.sqsClient).toThrow(TypeError);
     expect(() => clients.sqsClient).toThrow('boom');

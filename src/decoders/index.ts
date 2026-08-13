@@ -18,4 +18,7 @@ export {
   isoDateString,
   optionalTrimmedString,
   optionalInteger,
-} from './decoders';
+} from './decoders.js';
+
+export { fromSanitizer } from './fromSanitizer/index.js';
+export type { Sanitizer } from './fromSanitizer/index.js';

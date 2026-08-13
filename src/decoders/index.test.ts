@@ -1,5 +1,5 @@
-import * as decoders from './index';
-import { emailString, validEmail } from './index';
+import * as decoders from './index.js';
+import { emailString, validEmail } from './index.js';
 
 describe('decoders barrel', () => {
   it('exports every public decoder', () => {
@@ -8,6 +8,7 @@ describe('decoders barrel', () => {
         'alphanumericId',
         'createEnum',
         'emailString',
+        'fromSanitizer',
         'isoDateString',
         'jsonString',
         'limitedInteger',

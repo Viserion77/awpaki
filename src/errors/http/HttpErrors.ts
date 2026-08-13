@@ -1,5 +1,6 @@
-import { HttpError } from './HttpError';
-import { HttpErrorStatus, HttpStatus } from './HttpStatus';
+import { HttpError, toHttpErrorInit } from './HttpError.js';
+import type { HttpErrorInit, HttpErrorOptions } from './HttpError.js';
+import { HttpErrorStatus, HttpStatus } from './HttpStatus.js';
 
 // Re-export both for convenience
 export { HttpErrorStatus, HttpStatus };
@@ -16,11 +17,27 @@ export { HttpErrorStatus, HttpStatus };
  */
 export class BadRequest extends HttpError {
   constructor(
-    message: string = 'Bad Request',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.BAD_REQUEST, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.BAD_REQUEST, message: 'Bad Request' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -36,11 +53,27 @@ export class BadRequest extends HttpError {
  */
 export class Unauthorized extends HttpError {
   constructor(
-    message: string = 'Unauthorized',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.UNAUTHORIZED, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.UNAUTHORIZED, message: 'Unauthorized' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -56,11 +89,27 @@ export class Unauthorized extends HttpError {
  */
 export class Forbidden extends HttpError {
   constructor(
-    message: string = 'Forbidden',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.FORBIDDEN, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.FORBIDDEN, message: 'Forbidden' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -76,11 +125,27 @@ export class Forbidden extends HttpError {
  */
 export class NotFound extends HttpError {
   constructor(
-    message: string = 'Not Found',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.NOT_FOUND, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.NOT_FOUND, message: 'Not Found' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -96,11 +161,27 @@ export class NotFound extends HttpError {
  */
 export class Conflict extends HttpError {
   constructor(
-    message: string = 'Conflict',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.CONFLICT, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.CONFLICT, message: 'Conflict' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -115,11 +196,27 @@ export class Conflict extends HttpError {
  */
 export class PreconditionFailed extends HttpError {
   constructor(
-    message: string = 'Precondition Failed',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.PRECONDITION_FAILED, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.PRECONDITION_FAILED, message: 'Precondition Failed' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -135,11 +232,27 @@ export class PreconditionFailed extends HttpError {
  */
 export class UnprocessableEntity extends HttpError {
   constructor(
-    message: string = 'Unprocessable Entity',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.UNPROCESSABLE_ENTITY, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.UNPROCESSABLE_ENTITY, message: 'Unprocessable Entity' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -154,11 +267,27 @@ export class UnprocessableEntity extends HttpError {
  */
 export class TooManyRequests extends HttpError {
   constructor(
-    message: string = 'Too Many Requests',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.TOO_MANY_REQUESTS, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.TOO_MANY_REQUESTS, message: 'Too Many Requests' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -174,11 +303,27 @@ export class TooManyRequests extends HttpError {
  */
 export class InternalServerError extends HttpError {
   constructor(
-    message: string = 'Internal Server Error',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.INTERNAL_SERVER_ERROR, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.INTERNAL_SERVER_ERROR, message: 'Internal Server Error' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -194,11 +339,27 @@ export class InternalServerError extends HttpError {
  */
 export class NotImplemented extends HttpError {
   constructor(
-    message: string = 'Not Implemented',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.NOT_IMPLEMENTED, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.NOT_IMPLEMENTED, message: 'Not Implemented' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -214,11 +375,27 @@ export class NotImplemented extends HttpError {
  */
 export class BadGateway extends HttpError {
   constructor(
-    message: string = 'Bad Gateway',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.BAD_GATEWAY, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.BAD_GATEWAY, message: 'Bad Gateway' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -233,11 +410,27 @@ export class BadGateway extends HttpError {
  */
 export class ServiceUnavailable extends HttpError {
   constructor(
-    message: string = 'Service Unavailable',
+    message?: string,
     data?: Record<string, any>,
-    headers?: Record<string, string | boolean | number>
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
+  );
+  constructor(init?: HttpErrorInit);
+  constructor(
+    messageOrInit?: string | HttpErrorInit,
+    data?: Record<string, any>,
+    headers?: Record<string, string | boolean | number>,
+    options?: HttpErrorOptions
   ) {
-    super(message, HttpErrorStatus.SERVICE_UNAVAILABLE, data, headers);
+    super(
+      toHttpErrorInit(
+        messageOrInit,
+        { statusCode: HttpErrorStatus.SERVICE_UNAVAILABLE, message: 'Service Unavailable' },
+        data,
+        headers,
+        options
+      )
+    );
   }
 }
 
@@ -268,6 +461,7 @@ export const HTTP_ERROR_MAP: Record<number, any> = {
  * @param message - Error message
  * @param data - Additional error data
  * @param headers - Response headers
+ * @param options - Code, cause and diagnostics
  * @returns Instance of the appropriate HttpError subclass
  *
  * @example
@@ -278,19 +472,30 @@ export const HTTP_ERROR_MAP: Record<number, any> = {
  * const error = createHttpError(999, 'Custom error');
  * // Returns: NotImplemented (501) instance
  * ```
+ *
+ * @example
+ * ```typescript
+ * // A code the client can branch on, while the message stays prose for the log
+ * createHttpError(409, 'SKU 42 was retired in 2019', undefined, undefined, {
+ *   code: 'sku_retired',
+ * });
+ * ```
  */
 export function createHttpError(
   statusCode: number,
   message: string,
   data?: Record<string, any>,
-  headers?: Record<string, string | boolean | number>
+  headers?: Record<string, string | boolean | number>,
+  options?: HttpErrorOptions
 ): HttpError {
   const ErrorClass = HTTP_ERROR_MAP[statusCode];
 
   // If status code not mapped, use NotImplemented (501)
   if (!ErrorClass) {
-    return new NotImplemented(message || 'Not Implemented', data, headers);
+    return new NotImplemented(message || 'Not Implemented', data, headers, options);
   }
 
-  return new ErrorClass(message, data, headers);
+  // Positional, never an init object: `HTTP_ERROR_MAP` is public and mutable, and a class a
+  // consumer substituted into it is only guaranteed to understand the positional shape.
+  return new ErrorClass(message, data, headers, options);
 }

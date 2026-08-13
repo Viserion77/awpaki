@@ -1,5 +1,5 @@
 import { ListDomainNamesCommand } from '@aws-sdk/client-opensearch';
-import { openSearchClient } from './index';
+import { openSearchClient } from './index.js';
 
 describe('openSearchClient', () => {
   it('should have execute method', () => {

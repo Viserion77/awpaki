@@ -1,7 +1,27 @@
-import { BadRequest } from '../errors';
+import { BadRequest } from '../errors/index.js';
+
+/**
+ * Options of {@link parseJsonBody}.
+ *
+ * @template T - The expected type of the parsed object
+ */
+export interface ParseJsonBodyOptions<T> {
+  /**
+   * Value returned when the body is null, undefined or blank. Providing it is what makes
+   * the body optional — without it, an absent body is a `BadRequest`, because the common
+   * case is a route that requires one and would otherwise fail later on a property read.
+   */
+  defaultValue?: T;
+}
 
 /**
  * Parses a JSON stringified body and returns the parsed object.
+ *
+ * The failure message deliberately does **not** include the parser's own message. V8 quotes
+ * a fragment of the offending input in it (`Unexpected token } in JSON at position 42`), and
+ * this error is thrown with a status that reaches the client, so the fragment would be
+ * echoed back to whoever sent it. The body is already available to whoever is debugging,
+ * in the entry log.
  *
  * @template T - The expected type of the parsed object
  * @param {string | null | undefined} body - The stringified JSON body to parse
@@ -59,14 +79,6 @@ import { BadRequest } from '../errors';
  * }
  * ```
  */
-export interface ParseJsonBodyOptions<T> {
-  /**
-   * Default value to return if body is null, undefined, or empty string.
-   * When provided, makes the body optional (won't throw error if empty).
-   */
-  defaultValue?: T;
-}
-
 export function parseJsonBody<T>(
   body: string | null | undefined,
   options?: ParseJsonBodyOptions<T>
@@ -87,9 +99,9 @@ export function parseJsonBody<T>(
     const parsed = JSON.parse(body);
     return parsed as T;
   } catch (error) {
-    if (error instanceof Error) {
-      throw new BadRequest(`Invalid JSON format: ${error.message}`);
-    }
-    throw new BadRequest('Invalid JSON format');
+    // The parser's own error travels as `cause`, which the log serializer copies explicitly
+    // and no response builder reads — the diagnostic survives without the payload fragment
+    // in its message being echoed back to the caller.
+    throw new BadRequest('Invalid JSON format', undefined, undefined, { cause: error });
   }
 }

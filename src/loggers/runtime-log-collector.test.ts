@@ -1,12 +1,21 @@
 import type { Context, Handler } from 'aws-lambda';
-import { getLogger, resetLogSink, resetLogger, setLogSink, setLogger } from './logger';
-import type { Logger } from './logger';
 import {
+  getLogLevel,
+  getLogger,
+  resetLogLevel,
+  resetLogSink,
+  resetLogger,
+  setLogSink,
+  setLogger,
+} from './logger.js';
+import type { Logger } from './logger.js';
+import {
+  DEFAULT_MAX_BUFFERED_LINES,
   DEFAULT_PRE_TIMEOUT_MARGIN_MS,
   TRACKING_LOG_MESSAGE,
   addTrackingKey,
   withRuntimeLogCollector,
-} from './runtime-log-collector';
+} from './runtime-log-collector.js';
 
 /** Lines captured from process.stdout, already without the trailing newline. */
 let lines: string[] = [];
@@ -22,6 +31,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stdoutSpy.mockRestore();
+  resetLogLevel();
   resetLogger();
   resetLogSink();
   jest.useRealTimers();
@@ -865,5 +875,100 @@ describe('sink ownership', () => {
     } finally {
       delete process.env.AWS_LAMBDA_LOG_FORMAT;
     }
+  });
+
+  // The logger gate defaults to INFO, which would drop DEBUG before the buffer ever saw it —
+  // and DEBUG context released on failure is the entire point of the collector.
+  describe('interaction with the logger level gate', () => {
+    it('opens the gate to DEBUG when the handler is wrapped', () => {
+      resetLogLevel();
+      expect(getLogLevel()).toBe('info');
+
+      withRuntimeLogCollector(async () => undefined);
+
+      expect(getLogLevel()).toBe('debug');
+    });
+
+    it('buffers DEBUG lines and releases them on failure', async () => {
+      const wrapped = withRuntimeLogCollector(async () => {
+        getLogger().debug({ step: 1 }, 'debug context');
+        throw new Error('boom');
+      });
+
+      await expect(wrapped({})).rejects.toThrow('boom');
+
+      expect(messages()).toContain('debug context');
+    });
+
+    it('honours an explicit level instead', () => {
+      withRuntimeLogCollector(async () => undefined, { logLevel: 'info' });
+
+      expect(getLogLevel()).toBe('info');
+    });
+  });
+
+  describe('buffer ceiling', () => {
+    it('drops the oldest lines and keeps the ones nearest the failure', async () => {
+      const wrapped = withRuntimeLogCollector(
+        async () => {
+          for (let index = 0; index < 5; index++) {
+            getLogger().info({ index }, `line-${index}`);
+          }
+          throw new Error('boom');
+        },
+        { maxBufferedLines: 2 }
+      );
+
+      await expect(wrapped({})).rejects.toThrow('boom');
+
+      expect(messages()).toEqual([
+        'awpaki log buffer overflowed, oldest lines were dropped',
+        'line-3',
+        'line-4',
+      ]);
+    });
+
+    it('reports how many lines were dropped, so the gap is never silent', async () => {
+      const wrapped = withRuntimeLogCollector(
+        async () => {
+          for (let index = 0; index < 10; index++) {
+            getLogger().info({ index }, `line-${index}`);
+          }
+          throw new Error('boom');
+        },
+        { maxBufferedLines: 3 }
+      );
+
+      await expect(wrapped({})).rejects.toThrow('boom');
+
+      const overflow = records()[0];
+      expect(overflow.level).toBe('WARN');
+      expect(overflow.droppedLines).toBe(7);
+      expect(overflow.maxBufferedLines).toBe(3);
+    });
+
+    it('says nothing when the buffer stayed under the ceiling', async () => {
+      const wrapped = withRuntimeLogCollector(async () => {
+        getLogger().info({}, 'only one');
+        throw new Error('boom');
+      });
+
+      await expect(wrapped({})).rejects.toThrow('boom');
+
+      expect(messages()).toEqual(['only one']);
+    });
+
+    it('defaults to DEFAULT_MAX_BUFFERED_LINES', async () => {
+      const wrapped = withRuntimeLogCollector(async () => {
+        for (let index = 0; index < DEFAULT_MAX_BUFFERED_LINES + 5; index++) {
+          getLogger().info({ index }, `line-${index}`);
+        }
+        throw new Error('boom');
+      });
+
+      await expect(wrapped({})).rejects.toThrow('boom');
+
+      expect(records()[0].droppedLines).toBe(5);
+    });
   });
 });

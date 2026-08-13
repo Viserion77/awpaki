@@ -1,4 +1,4 @@
-import { changeDate, formatDate, getDiffDays } from './dates';
+import { changeDate, formatDate, getDiffDays } from './dates.js';
 
 describe('formatDate', () => {
   it('should use YYYY-MM-DD as the default format', () => {

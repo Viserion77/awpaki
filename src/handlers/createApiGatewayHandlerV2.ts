@@ -6,11 +6,12 @@
  *
  * 1. per-invocation log buffer ({@link applyLogCollector}, outermost layer)
  * 2. {@link logApiGatewayEventV2}
- * 3. {@link extractEventParams}
- * 4. gates — API key first, then the `authorize` hook
- * 5. `execute`
- * 6. JSON serialization of the response
- * 7. a single `catch` delegating to {@link handleApiGatewayErrorV2}
+ * 3. the API key gate
+ * 4. {@link extractEventParams}
+ * 5. the `authorize` hook
+ * 6. `execute`
+ * 7. JSON serialization of the response
+ * 8. a single `catch` delegating to {@link handleApiGatewayErrorV2}
  *
  * @module handlers/createApiGatewayHandlerV2
  */
@@ -20,13 +21,14 @@ import type {
   APIGatewayProxyStructuredResultV2,
   Context,
 } from 'aws-lambda';
-import { HttpStatus, Unauthorized, handleApiGatewayErrorV2 } from '../errors';
-import { extractEventParams } from '../extractors';
-import type { EventSchema } from '../extractors';
-import { logApiGatewayEventV2 } from '../loggers';
-import type { LogConfig } from '../loggers';
-import { applyLogCollector } from './logCollector';
-import type { HandlerWrapper, LambdaHandler } from './logCollector';
+import { HttpStatus, Unauthorized, handleApiGatewayErrorV2 } from '../errors/index.js';
+import type { ErrorBodyShaper, HttpErrorStatusType } from '../errors/index.js';
+import { extractEventParams } from '../extractors/index.js';
+import type { EventSchema } from '../extractors/index.js';
+import { logApiGatewayEventV2 } from '../loggers/index.js';
+import type { LogConfig } from '../loggers/index.js';
+import { applyLogCollector } from './logCollector.js';
+import type { HandlerWrapper, LambdaHandler } from './logCollector.js';
 
 /** Header value types accepted by API Gateway payload format 2.0. */
 export type ApiGatewayHeaderValue = string | number | boolean;
@@ -102,6 +104,22 @@ export interface CreateApiGatewayHandlerV2Options<TParams, TBody> {
   logConfig?: LogConfig;
   /** Per-handler log collector, taking precedence over the globally registered one */
   logCollector?: HandlerWrapper<APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2>;
+  /**
+   * Runs the API key gate **before** the schema, so an unauthenticated caller gets a bare 401.
+   *
+   * With the schema first — the order this factory shipped with — one malformed request from a
+   * caller with no key comes back with the full per-field error map keyed by schema path,
+   * which is a complete description of the route's inputs, and every decoder has already run
+   * on attacker-controlled values. Defaults to `true`; set it to `false` for the previous
+   * order, where a request that is both unauthenticated and malformed reports both.
+   */
+  checkApiKeyBeforeSchema?: boolean;
+  /** Shaper for the error body of this handler, overriding the registered one */
+  errorBodyShaper?: ErrorBodyShaper;
+  /** Status used for a schema failure with no `statusCodeError` of its own. Defaults to 422 */
+  validationStatusCode?: HttpErrorStatusType;
+  /** `code` carried by a schema failure, for clients that branch on one */
+  validationErrorCode?: string;
 }
 
 const DEFAULT_API_KEY_HEADER = 'x-api-key';
@@ -326,11 +344,24 @@ export function createApiGatewayHandlerV2<TParams = Record<string, unknown>, TBo
     try {
       logApiGatewayEventV2(event, context, options.logConfig);
 
-      const params = extractEventParams<TParams>(options.schema ?? {}, event);
+      // The gate runs first by default: a caller with no key must not be handed the route's
+      // schema, one field at a time, in the error map — nor have its decoders run on their
+      // input. The entry log stays ahead of both, so an unauthenticated attempt is still
+      // recorded.
+      if (options.checkApiKeyBeforeSchema !== false) {
+        assertApiKey(options, event);
+      }
+
+      const params = extractEventParams<TParams>(options.schema ?? {}, event, {
+        validationStatusCode: options.validationStatusCode,
+        validationErrorCode: options.validationErrorCode,
+      });
 
       const input: ApiGatewayHandlerV2Input<TParams> = { params, event, context };
 
-      assertApiKey(options, event);
+      if (options.checkApiKeyBeforeSchema === false) {
+        assertApiKey(options, event);
+      }
 
       if (options.authorize) {
         await options.authorize(input);
@@ -340,7 +371,7 @@ export function createApiGatewayHandlerV2<TParams = Record<string, unknown>, TBo
 
       return toResponse(result, options);
     } catch (error) {
-      return handleApiGatewayErrorV2(error);
+      return handleApiGatewayErrorV2(error, undefined, options.errorBodyShaper);
     }
   };
 

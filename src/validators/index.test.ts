@@ -1,4 +1,4 @@
-import * as validators from './index';
+import * as validators from './index.js';
 
 const VALIDATOR_NAMES = [
   'isEmail',

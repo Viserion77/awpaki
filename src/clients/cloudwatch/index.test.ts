@@ -1,5 +1,5 @@
 import { ListMetricsCommand } from '@aws-sdk/client-cloudwatch';
-import { cloudWatchClient } from './index';
+import { cloudWatchClient } from './index.js';
 
 describe('cloudWatchClient', () => {
   it('should have execute method', () => {

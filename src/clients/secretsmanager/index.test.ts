@@ -1,5 +1,5 @@
 import { GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
-import { secretsManagerClient } from './index';
+import { secretsManagerClient } from './index.js';
 
 describe('secretsManagerClient', () => {
   it('should have execute method', () => {
@@ -30,11 +30,14 @@ describe('secretsManagerClient', () => {
 /* eslint-disable @typescript-eslint/no-require-imports -- the client is built at import time */
 
 interface MockedModule {
-  secretsManagerClient: typeof import('./index').secretsManagerClient;
+  secretsManagerClient: typeof import('./index.js').secretsManagerClient;
   commands: Array<{ input: Record<string, any> }>;
   send: jest.Mock;
   /** Serialized log lines produced during the test */
   logs: string[];
+  /** Level control of the freshly required logger copy, since the registry is module state */
+  setLogLevel: typeof import('../../loggers/logger.js').setLogLevel;
+  resetLogLevel: typeof import('../../loggers/logger.js').resetLogLevel;
 }
 
 /**
@@ -60,12 +63,19 @@ function loadWithMockedSdk(): MockedModule {
   // The module under test resolves its logger from the freshly reset registry, so the sink
   // has to be installed on that same copy.
   const logs: string[] = [];
-  const logger = require('../../loggers/logger') as typeof import('../../loggers/logger');
+  const logger = require('../../loggers/logger.js') as typeof import('../../loggers/logger.js');
   logger.setLogSink((line) => logs.push(line));
 
-  const mod = require('./index') as typeof import('./index');
+  const mod = require('./index.js') as typeof import('./index.js');
 
-  return { secretsManagerClient: mod.secretsManagerClient, commands, send: sendMock, logs };
+  return {
+    secretsManagerClient: mod.secretsManagerClient,
+    commands,
+    send: sendMock,
+    logs,
+    setLogLevel: logger.setLogLevel,
+    resetLogLevel: logger.resetLogLevel,
+  };
 }
 
 /**
@@ -261,9 +271,15 @@ describe('secretsManagerClient.getCredentialsFromSecret', () => {
 
   it('retries the read according to the retry options', async () => {
     const mod = loadWithMockedSdk();
-    mod.send.mockRejectedValueOnce(new Error('ThrottlingException')).mockResolvedValueOnce({
-      SecretString: JSON.stringify({ accessKeyId: 'AKIA', secretAccessKey: 'secret' }),
-    });
+    // Realistic shape: the SDK reports the error in `name`, and the classifier reads that —
+    // never the message, which is prose.
+    mod.send
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Rate exceeded'), { name: 'ThrottlingException' })
+      )
+      .mockResolvedValueOnce({
+        SecretString: JSON.stringify({ accessKeyId: 'AKIA', secretAccessKey: 'secret' }),
+      });
 
     const credentials = await mod.secretsManagerClient.getCredentialsFromSecret('partner', {
       retries: 2,
@@ -277,6 +293,9 @@ describe('secretsManagerClient.getCredentialsFromSecret', () => {
 
   it('logs through the awpaki logger, never through console, and never logs the secret', async () => {
     const mod = loadWithMockedSdk();
+    // The only record this path emits is DEBUG, which the logger's INFO default drops.
+    mod.setLogLevel('debug');
+
     mod.send.mockResolvedValue({
       SecretString: JSON.stringify({
         accessKeyId: 'AKIA-leak',

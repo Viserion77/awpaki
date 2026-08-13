@@ -8,7 +8,7 @@
  * @module decoders
  */
 
-import { isEmail } from '../validators/isEmail';
+import { isEmail } from '../validators/isEmail/index.js';
 
 /**
  * Removes whitespace and validates non-empty string
@@ -112,6 +112,28 @@ export function parseIntOrNaN(value: unknown): number {
 }
 
 /**
+ * Coerces a value to an integer for the decoders that promise one.
+ *
+ * {@link parseIntOrNaN} returns numbers untouched — deliberately, since it is also the
+ * building block for decoders that accept fractions — so a JSON body carrying `2.7`
+ * reached `positiveInteger` and came back as `2.7`. A string `"2.7"` came back as `2`,
+ * because `parseInt` stops at the dot. Two encodings of the same quantity produced two
+ * different results, and the one that survived was the one no downstream `Number.isInteger`
+ * check expected.
+ *
+ * Truncation (not rounding) matches `parseInt`, which is what the string path has always
+ * done. `Infinity` is rejected rather than truncated: it is a number, it is not an integer,
+ * and `Math.trunc` would hand it through unchanged.
+ *
+ * @param value - Input value of any type
+ * @returns The truncated integer, or `NaN` when the value cannot be coerced to a finite one
+ */
+function toInteger(value: unknown): number {
+  const num = parseIntOrNaN(value);
+  return Number.isFinite(num) ? Math.trunc(num) : NaN;
+}
+
+/**
  * Converts value to positive integer (>= 1)
  *
  * @param value - Input value (string or number)
@@ -123,12 +145,13 @@ export function parseIntOrNaN(value: unknown): number {
  * decoder: positiveInteger
  * // Input: "123" → Output: 123
  * // Input: 456 → Output: 456
+ * // Input: 2.7 → Output: 2 — truncated, like the string form "2.7"
  * // Invalid: "0" → throws error
  * // Invalid: "-1" → throws error
  * ```
  */
 export function positiveInteger(value: unknown): number {
-  const num = parseIntOrNaN(value);
+  const num = toInteger(value);
   if (isNaN(num) || num < 1) {
     throw new Error('Must be a positive number');
   }
@@ -153,12 +176,16 @@ export function positiveInteger(value: unknown): number {
  *   }
  * };
  * // Input: "50" → Output: 50
+ * // Input: 100.9 → Output: 100 — truncated first, so it stays in range
  * // Invalid: "101" → throws error
  * ```
  */
 export function limitedInteger(min = 1, max = 1000): (value: unknown) => number {
   return function validateLimitedInteger(value: unknown): number {
-    const num = parseIntOrNaN(value);
+    // Truncate before the range test, never after: `limitedInteger(1, 100)` answering
+    // `100.9` must be the in-range `100`, not a rejection of a value the caller is
+    // entitled to have clamped by truncation.
+    const num = toInteger(value);
     if (isNaN(num) || num < min || num > max) {
       throw new Error(`Must be a number between ${min} and ${max}`);
     }
@@ -290,8 +317,16 @@ export function validEmail(value: unknown): string {
  * ```
  */
 export function createEnum(validValues: string[]): (value: unknown) => string {
+  // The incoming value was lower-cased before the lookup but the allow list was not, so
+  // `createEnum(['ACTIVE'])('ACTIVE')` failed with `Must be one of: ACTIVE` — the decoder
+  // rejected the exact string it was configured to accept. Normalizing the list once, at
+  // factory time, is what makes the documented case-insensitivity true in both directions.
+  const normalized = validValues.map((validValue) => validValue.toLowerCase());
+
   return function validateEnum(value: unknown): string {
-    if (typeof value !== 'string' || !validValues.includes(value.toLowerCase())) {
+    if (typeof value !== 'string' || !normalized.includes(value.toLowerCase())) {
+      // The message lists the values as the caller wrote them: it is read by a human
+      // debugging their request, not compared against the normalized form.
       throw new Error(`Must be one of: ${validValues.join(', ')}`);
     }
     return value.toLowerCase();
@@ -418,7 +453,7 @@ export function optionalInteger(defaultValue = 0): (value: unknown) => number {
     // The falsy early-return runs *before* the coercion on purpose: unlike
     // positiveInteger/limitedInteger, `0` and `''` resolve to the default here.
     if (!value) return defaultValue;
-    const num = parseIntOrNaN(value);
+    const num = toInteger(value);
     return isNaN(num) ? defaultValue : num;
   };
 }
