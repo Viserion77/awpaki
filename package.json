@@ -1,6 +1,6 @@
 {
   "name": "awpaki",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "AWS Patterns Kit - TypeScript utility library with AWS SDK clients, Lambda helpers, error handling, and data validation",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
