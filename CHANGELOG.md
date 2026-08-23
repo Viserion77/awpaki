@@ -10,6 +10,35 @@ how to use the result.
 
 ---
 
+## [1.5.3] - 2026-08-10
+
+### Changed
+
+- **`execute` preserves the output type of the command** on every client (`apiGatewayClient`,
+  `cloudWatchClient`, `dynamodbClient`, `iotClient`, `lambdaClient`, `openSearchClient`,
+  `s3Client`, `secretsManagerClient`, `sesClient`, `snsClient`, `sqsClient`,
+  `timestreamQueryClient`, `timestreamWriteClient`). The signature was
+  `execute<T = any>(command: any): Promise<T>`, whose two parameters cancelled each other out:
+  any object passed as a command, and a result with no shape at the call site. It is now
+  generic over the command — `execute<C extends AwsCommand>(command: C): Promise<CommandOutput<C>>`
+  — so `execute` is a drop-in for the SDK's own `send`: a typo in a field read from a response
+  is a compile error instead of `undefined` in production, and nothing has to be annotated.
+  `AwsCommand` and `CommandOutput` are exported from `awpaki/clients` and every client subpath.
+
+  **Breaking, at the type level only** — the runtime is untouched. A call site that annotated
+  the result by hand (`execute<GetCommandOutput>(command)`) no longer compiles, because the type
+  parameter is now the command rather than the result. The fix is to delete the annotation: the
+  inferred type is the same one, and it can no longer be stated wrongly. A call site that passed
+  something which is not an SDK command is now rejected, which is the point.
+
+### Added
+
+- **`@smithy/types`** as a direct dependency. It is types-only, adds nothing at runtime, and is
+  already a transitive dependency of every AWS SDK client; declaring it directly means the
+  published `.d.ts` resolve for a consumer under a strict installer as well.
+
+---
+
 ## [1.5.1] - 2026-08-09
 
 The release that turns awpaki from a collection of helpers into a thin framework: handler

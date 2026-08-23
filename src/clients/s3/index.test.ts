@@ -1,5 +1,6 @@
 import { s3Client } from './index.js';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import type { AwsCommand } from '../index.types.js';
 
 describe('s3Client', () => {
   it('should have execute method', () => {
@@ -70,8 +71,9 @@ function loadWithStubbedSdk(): CapturedConfig {
   const mod = require('./index.js') as typeof import('./index.js');
 
   // The client is built on first use now, so the probe has to make a call. The stub has no
-  // `send`, and the failure is irrelevant: the constructor has already run by then.
-  void mod.s3Client.execute({}).catch(() => undefined);
+  // `send`, and the failure is irrelevant: the constructor has already run by then. `execute`
+  // only accepts real commands, so the empty probe is asserted through the parameter type.
+  void mod.s3Client.execute({} as AwsCommand).catch(() => undefined);
 
   return captured;
 }

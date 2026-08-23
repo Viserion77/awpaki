@@ -3,8 +3,12 @@
  *
  * This module is intentionally free of any runtime code and of any `@aws-sdk/*`
  * import, so it can be consumed by non-client code (such as `src/constants/`)
- * without pulling in the optional AWS peer dependencies.
+ * without pulling in the optional AWS peer dependencies. The one import below is
+ * `@smithy/types`, a types-only package that every AWS SDK client already depends
+ * on and that this package declares as a direct dependency, so it resolves even
+ * for a consumer that installed no service client at all.
  */
+import type { CommandIO, GetOutputType, MetadataBearer } from '@smithy/types';
 
 /**
  * Options for retry configuration
@@ -53,3 +57,23 @@ export interface RetryOptions {
    */
   signal?: { aborted: boolean };
 }
+
+/**
+ * Any AWS SDK command, reduced to what is needed to read its output type.
+ *
+ * `CommandIO` is the subset of the SDK's own `Command` that carries the input and output
+ * types, which is exactly what a wrapper around `send` needs: it accepts every real command
+ * of every service, and rejects an object that only looks like one.
+ */
+export type AwsCommand = CommandIO<any, MetadataBearer>;
+
+/**
+ * The output type the SDK's own `send` would produce for the command `C`.
+ *
+ * Used as the return type of every `execute`, so a call site keeps the typing it would have
+ * had without the wrapper — `execute(new GetCommand(...))` infers `GetCommandOutput`, with no
+ * annotation to write and none to get wrong.
+ *
+ * @template C - The command being executed
+ */
+export type CommandOutput<C> = GetOutputType<C>;

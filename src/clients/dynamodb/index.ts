@@ -4,7 +4,7 @@ import type { TranslateConfig } from '@aws-sdk/lib-dynamodb';
 import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
 import { createLazyClient } from '../lazyClient.js';
 import { withRetry } from '../retry/withRetry.js';
-import type { RetryOptions } from '../index.types.js';
+import type { AwsCommand, CommandOutput, RetryOptions } from '../index.types.js';
 
 /**
  * Marshalling defaults of the document client.
@@ -113,10 +113,13 @@ export const dynamodbClient = {
    * @param retryOptions - Optional retry configuration
    * @returns Promise with the command result
    */
-  async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
+  async execute<C extends AwsCommand>(
+    command: C,
+    retryOptions?: RetryOptions
+  ): Promise<CommandOutput<C>> {
     return withRetry(
       { service: 'dynamodb', command: command?.constructor?.name },
-      () => lazyDocumentClient.get().send(command) as Promise<T>,
+      () => lazyDocumentClient.get().send(command as never) as Promise<CommandOutput<C>>,
       retryOptions
     );
   },

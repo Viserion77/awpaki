@@ -263,20 +263,36 @@ Note that the underlying `GetSecretValue` is retried like every other command �
 
 ## Types
 
-`execute` is generic and infers from the SDK command, so responses are typed by the SDK itself:
+`execute` is generic **over the command** and returns exactly what the SDK's own `send` would,
+so a call site keeps the typing it would have had without the wrapper — nothing to annotate,
+and nothing to annotate wrongly:
 
 ```typescript
 const response = await dynamodbClient.execute(
   new GetCommand({ TableName: 'Users', Key: { id: '123' } })
 );
-// response.Item typed by @aws-sdk/lib-dynamodb
-
-const result = await dynamodbClient.execute<{ Item: User }>(
-  new GetCommand({ TableName: 'Users', Key: { id: '123' } })
-);
-// result.Item is User
+// response is GetCommandOutput; `response.Itme` is a compile error, not a runtime surprise
 ```
 
-`RetryOptions` is exported from `awpaki/clients` (and from each client subpath). It lives in a
-shared, SDK-free module rather than inside one client's folder, so importing the type does not
-pull DynamoDB's typings into a service that only uses S3.
+An object that is not an SDK command no longer type-checks, so a stray argument is caught at
+compile time instead of arriving as `any`.
+
+What a document-client read returns is `Record<string, NativeAttributeValue>` — that is all
+DynamoDB promises about an item. Narrow it where you read it, rather than by overriding the
+command's output type:
+
+```typescript
+const { Item } = await dynamodbClient.execute(
+  new GetCommand({ TableName: 'Users', Key: { id: '123' } })
+);
+const user = Item as User | undefined;
+```
+
+Passing the output type explicitly (`execute<{ Item: User }>(...)`) no longer compiles: the
+type parameter is now the command, not the result. Delete the annotation — the inferred type is
+the one the command already carried.
+
+`RetryOptions`, `AwsCommand` and `CommandOutput<C>` are exported from `awpaki/clients` (and
+from each client subpath). They live in a shared module that imports no service SDK — only
+`@smithy/types`, which is types-only and carries no runtime — so importing them does not pull
+DynamoDB's typings into a service that only uses S3.

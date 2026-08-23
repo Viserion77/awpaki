@@ -31,7 +31,7 @@
 
 /* eslint-disable @typescript-eslint/no-require-imports -- the deferred require() is the point of this module */
 
-export type { RetryOptions } from './index.types.js';
+export type { AwsCommand, CommandOutput, RetryOptions } from './index.types.js';
 
 // Drops every cached client so the next call rebuilds it from the current environment. Safe
 // to re-export eagerly: `lazyClient` imports no AWS SDK, which is the constraint this whole

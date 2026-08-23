@@ -3,7 +3,7 @@ import { TimestreamWriteClient } from '@aws-sdk/client-timestream-write';
 import { resolveEndpoint, resolveRegion } from '../../environment/index.js';
 import { createLazyClient } from '../lazyClient.js';
 import { withRetry } from '../retry/withRetry.js';
-import type { RetryOptions } from '../index.types.js';
+import type { AwsCommand, CommandOutput, RetryOptions } from '../index.types.js';
 
 // Timestream splits its API in two endpoints, so the override cascade has three levels:
 // the operation specific variable, then the shared AWS_ENDPOINT_URL_TIMESTREAM, then the
@@ -70,9 +70,12 @@ export const timestreamQueryClient = {
    * @param retryOptions - Optional retry configuration
    * @returns Promise with the command result
    */
-  async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    return executeWithRetry<T>(
-      () => lazyQueryClient.get().send(command),
+  async execute<C extends AwsCommand>(
+    command: C,
+    retryOptions?: RetryOptions
+  ): Promise<CommandOutput<C>> {
+    return executeWithRetry<CommandOutput<C>>(
+      () => lazyQueryClient.get().send(command as never),
       retryOptions,
       command?.constructor?.name
     );
@@ -106,9 +109,12 @@ export const timestreamWriteClient = {
    * @param retryOptions - Optional retry configuration
    * @returns Promise with the command result
    */
-  async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    return executeWithRetry<T>(
-      () => lazyWriteClient.get().send(command),
+  async execute<C extends AwsCommand>(
+    command: C,
+    retryOptions?: RetryOptions
+  ): Promise<CommandOutput<C>> {
+    return executeWithRetry<CommandOutput<C>>(
+      () => lazyWriteClient.get().send(command as never),
       retryOptions,
       command?.constructor?.name
     );

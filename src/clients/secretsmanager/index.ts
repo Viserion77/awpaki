@@ -5,7 +5,7 @@ import { BadRequest, NotFound, UnprocessableEntity } from '../../errors/index.js
 import { getLogger, toErrorLog } from '../../loggers/logger.js';
 import { createLazyClient } from '../lazyClient.js';
 import { withRetry } from '../retry/withRetry.js';
-import type { RetryOptions } from '../index.types.js';
+import type { AwsCommand, CommandOutput, RetryOptions } from '../index.types.js';
 
 // Built on first use, not at import: the region and endpoint are then read from the
 // environment the caller actually has, and a test can swap them with `resetAwsClients()`.
@@ -116,8 +116,11 @@ export const secretsManagerClient = {
    * @param retryOptions - Optional retry configuration
    * @returns Promise with the command result
    */
-  async execute<T = any>(command: any, retryOptions?: RetryOptions): Promise<T> {
-    return sendWithRetry<T>(command, retryOptions);
+  async execute<C extends AwsCommand>(
+    command: C,
+    retryOptions?: RetryOptions
+  ): Promise<CommandOutput<C>> {
+    return sendWithRetry<CommandOutput<C>>(command, retryOptions);
   },
 
   /**

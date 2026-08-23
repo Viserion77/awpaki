@@ -1,6 +1,7 @@
 import { QueryCommand } from '@aws-sdk/client-timestream-query';
 import { ListDatabasesCommand } from '@aws-sdk/client-timestream-write';
 import { timestreamQueryClient, timestreamWriteClient } from './index.js';
+import type { AwsCommand } from '../index.types.js';
 
 describe('timestream clients', () => {
   it('should have execute methods', () => {
@@ -69,9 +70,10 @@ function loadWithStubbedSdk(): { query: CapturedConfig; write: CapturedConfig } 
   const mod = require('./index.js') as typeof import('./index.js');
 
   // Both clients are built on first use now, so each one needs a call to exist. The stubs
-  // have no `send`; the constructor has already run by the time that matters.
-  void mod.timestreamQueryClient.execute({}).catch(() => undefined);
-  void mod.timestreamWriteClient.execute({}).catch(() => undefined);
+  // have no `send`; the constructor has already run by the time that matters. `execute` only
+  // accepts real commands, so the empty probe is asserted through the parameter type.
+  void mod.timestreamQueryClient.execute({} as AwsCommand).catch(() => undefined);
+  void mod.timestreamWriteClient.execute({} as AwsCommand).catch(() => undefined);
 
   return captured;
 }
