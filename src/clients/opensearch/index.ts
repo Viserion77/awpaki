@@ -33,7 +33,7 @@ const lazyClient = createLazyClient(
  */
 export const openSearchClient = {
   /**
-   * Executes a OpenSearch command with automatic retry logic.
+   * Executes an OpenSearch command with automatic retry logic.
    *
    * @param command - OpenSearch command to execute
    * @param retryOptions - Optional retry configuration

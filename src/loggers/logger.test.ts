@@ -624,14 +624,14 @@ describe('redaction', () => {
   });
 
   it('can be extended without losing the defaults', () => {
-    addRedactKeys(['cpf']);
+    addRedactKeys(['taxId']);
 
-    defaultLogger.info({ cpf: '000', authorization: 'Bearer x' }, 'extended');
+    defaultLogger.info({ taxId: '000', authorization: 'Bearer x' }, 'extended');
 
     const record = lastRecord();
-    expect(record.cpf).toBe('[REDACTED]');
+    expect(record.taxId).toBe('[REDACTED]');
     expect(record.authorization).toBe('[REDACTED]');
-    expect(getRedactKeys()).toContain('cpf');
+    expect(getRedactKeys()).toContain('taxId');
   });
 
   it('can be replaced entirely', () => {

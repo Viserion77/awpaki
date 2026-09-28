@@ -33,7 +33,7 @@ const lazyClient = createLazyClient(
  */
 export const iotClient = {
   /**
-   * Executes a IoT Core command with automatic retry logic.
+   * Executes an IoT Core command with automatic retry logic.
    *
    * @param command - IoT Core command to execute
    * @param retryOptions - Optional retry configuration

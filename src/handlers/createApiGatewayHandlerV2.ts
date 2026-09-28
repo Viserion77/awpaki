@@ -86,7 +86,7 @@ export interface CreateApiGatewayHandlerV2Options<TParams, TBody> {
   /**
    * Authorization hook, run after the schema and the API key gate. Throw
    * `Unauthorized` (401) or `Forbidden` (403) to reject; return normally to allow.
-   * Replaces the product-specific group/domain gates of the original implementation.
+   * Use it for the tenant, group or domain checks a schema cannot express.
    */
   authorize?: (input: ApiGatewayHandlerV2Input<TParams>) => void | Promise<void>;
   /**

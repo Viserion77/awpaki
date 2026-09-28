@@ -17,7 +17,7 @@ duplicating them here would create a second copy that drifts.
 **The rules most often broken by generated code, in one line each:**
 
 - Document **why**, never what. No comment or doc that restates a signature.
-- Never create ad-hoc markdown in the repository root (`ANALYSIS.md`, `NOTES.md`, `RESUMO.md`).
+- Never create ad-hoc markdown in the repository root (`ANALYSIS.md`, `NOTES.md`, `SUMMARY.md`).
   Documentation goes in the `docs/` file that owns the subject.
 - Never reference a private or downstream repository. This is a public package.
 - `function name() {}`, not `const name = () => {}` — anonymous frames make production stack

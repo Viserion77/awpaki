@@ -62,8 +62,9 @@ export function capitalizeFirstLetter(value: string): string {
 /**
  * Keeps only the digits `0-9` of a value.
  *
- * The classic use is normalizing documents and phone numbers that arrive formatted from a
- * form before they are used as a partition key or as an external API argument.
+ * The classic use is normalizing identification numbers and phone numbers that arrive
+ * formatted from a form before they are used as a partition key or as an external API
+ * argument.
  *
  * Numbers are accepted for convenience and `null`/`undefined` return an empty string, so the
  * function can be applied straight to an optional field. Note that the sign, the decimal

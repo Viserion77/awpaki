@@ -153,5 +153,5 @@ mask returns a string.
 loss the module exists to avoid. `MAX_FLAG_BIT` (1023) caps the bit position so a bogus
 `hasFlag(mask, 1e9)` fails fast instead of building a billion-bit mask.
 
-There is no registry of groups here. Which bit means "can publish" is product catalog, not a
+There is no registry of groups here. Which bit means "can publish" is product configuration, not a
 reusable pattern — declare that mapping in your application and pass bit positions in.

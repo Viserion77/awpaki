@@ -313,7 +313,7 @@ function isRedactedKey(key: string): boolean {
  * ```typescript
  * import { setRedactKeys, DEFAULT_REDACT_KEYS } from 'awpaki/loggers';
  *
- * setRedactKeys([...DEFAULT_REDACT_KEYS, 'cpf', 'taxId']);
+ * setRedactKeys([...DEFAULT_REDACT_KEYS, 'taxId', 'nationalId']);
  * ```
  */
 export function setRedactKeys(keys: readonly string[]): void {
@@ -328,7 +328,7 @@ export function setRedactKeys(keys: readonly string[]): void {
  *
  * @example
  * ```typescript
- * addRedactKeys(['cpf', 'cardNumber']);
+ * addRedactKeys(['taxId', 'cardNumber']);
  * ```
  */
 export function addRedactKeys(keys: readonly string[]): void {

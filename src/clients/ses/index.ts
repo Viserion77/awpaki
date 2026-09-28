@@ -42,7 +42,7 @@ const lazyClient = createLazyClient(
  */
 export const sesClient = {
   /**
-   * Executes a SES command with automatic retry logic.
+   * Executes an SES command with automatic retry logic.
    *
    * @param command - SES command to execute
    * @param retryOptions - Optional retry configuration

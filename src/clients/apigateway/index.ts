@@ -33,7 +33,7 @@ const lazyClient = createLazyClient(
  */
 export const apiGatewayClient = {
   /**
-   * Executes a API Gateway command with automatic retry logic.
+   * Executes an API Gateway command with automatic retry logic.
    *
    * @param command - API Gateway command to execute
    * @param retryOptions - Optional retry configuration

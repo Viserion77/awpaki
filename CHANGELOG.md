@@ -317,7 +317,7 @@ string `'false'`, and `Boolean('false')` is `true`.
   aliases `handleSqsError`, `handleSnsError`, `handleEventBridgeError`, `handleS3Error`,
   `handleDynamoDBStreamError`.
 
-> The original 1.0.0 entry also announced a `isHttpError()` validator and a `normalizeHeaders()`
+> The original 1.0.0 entry also announced an `isHttpError()` validator and a `normalizeHeaders()`
 > transformer. Neither exists in the source history, so they never shipped; they are listed here
 > only to explain why older notes mention them. Use `error instanceof HttpError` instead, and the
 > `caseInsensitive` flag of a schema field for header matching.

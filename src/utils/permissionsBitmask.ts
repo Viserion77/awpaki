@@ -40,7 +40,7 @@
  * ## What is not here
  *
  * No registry of groups (`ACCESS_GROUPS`, `ACCESS_GROUP_BITS`). Which bit means "can publish"
- * is product catalog, not a reusable pattern — declare that mapping in your own application
+ * is product configuration, not a reusable pattern — declare that mapping in your own application
  * and pass bit positions in.
  *
  * @module utils/permissionsBitmask

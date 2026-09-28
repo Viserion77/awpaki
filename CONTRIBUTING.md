@@ -65,7 +65,7 @@ Concretely:
   [docs/configuration.md](docs/configuration.md), status codes in
   [docs/errors.md](docs/errors.md). Everything else links there. Duplicated explanations are
   bugs — one copy always rots.
-- **No ad-hoc markdown in the repository root.** `ANALYSIS.md`, `NOTES.md`, `RESUMO.md`,
+- **No ad-hoc markdown in the repository root.** `ANALYSIS.md`, `NOTES.md`, `SUMMARY.md`,
   `IMPROVEMENTS.md` and friends go stale within a week and nobody deletes them. Findings belong
   in the pull request, decisions belong in [docs/roadmap.md](docs/roadmap.md), and reference
   material belongs in the `docs/` file that owns the subject.
