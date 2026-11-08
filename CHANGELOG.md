@@ -10,6 +10,18 @@ how to use the result.
 
 ---
 
+## [1.5.4] - 2026-11-08
+
+### Security
+
+- **Lockfile refreshed against open advisories** in transitive dependencies: `handlebars` 4.7.10
+  (critical, JavaScript injection), `brace-expansion` 1.1.21 / 5.0.12 and `js-yaml` 3.15.2 (high,
+  CPU / stack-exhaustion DoS), and `fflate` 0.8.3 (moderate, via
+  `@smithy/middleware-compression`). All are dev/build-time dependencies; the public API and the
+  runtime dependencies of the published package are unchanged.
+
+---
+
 ## [1.5.3] - 2026-08-10
 
 ### Changed
