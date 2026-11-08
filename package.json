@@ -509,5 +509,8 @@
     "README.md",
     "LICENSE"
   ],
-  "module": "dist/esm/index.js"
+  "module": "dist/esm/index.js",
+  "overrides": {
+    "minimatch@^10": "^11.0.1"
+  }
 }
